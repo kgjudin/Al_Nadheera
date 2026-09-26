@@ -46,7 +46,7 @@ jobs:
 
       - name: Install CocoaPods
         working-directory: mobile/ios
-        run: pod install
+        run: pod install --repo-update
 
       - name: Build iOS Release (Unsigned)
         working-directory: mobile
