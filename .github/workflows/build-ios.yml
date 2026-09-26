@@ -1,0 +1,69 @@
+name: Build iOS IPA (ANCC)
+
+on:
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+  push:
+    branches: [ main ]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/build-ios.yml'
+
+jobs:
+  build-ios:
+    name: Build iOS IPA
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.32.1'
+          channel: 'stable'
+          cache: true
+
+      - name: Create config.env
+        working-directory: mobile
+        run: |
+          mkdir -p assets
+          cat << 'EOF' > assets/config.env
+          API_BASE_URL=${{ secrets.API_BASE_URL || 'https://al-nadheera-backend.onrender.com/api' }}
+          SUPABASE_URL=${{ secrets.SUPABASE_URL || 'https://iahwyfbkdmppgmbhteyt.supabase.co' }}
+          SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlhaHd5ZmJrZG1wcGdtYmh0ZXl0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTAxODA3NTYsImV4cCI6MjEwNTc1Njc1Nn0.RIFjLbeSi8GfeXW2YKmsjwcjnq1EjUupk6zbzfmrRkA' }}
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          EOF
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Install CocoaPods
+        working-directory: mobile/ios
+        run: pod install
+
+      - name: Build iOS Release (Unsigned)
+        working-directory: mobile
+        run: flutter build ios --release --no-codesign
+
+      - name: Package Payload into ANCC.ipa
+        working-directory: mobile
+        run: |
+          cd build/ios/iphoneos
+          mkdir -p Payload
+          cp -r Runner.app Payload/
+          zip -r ANCC.ipa Payload
+          mv ANCC.ipa ../../../ANCC.ipa
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ANCC-iOS-IPA
+          path: mobile/ANCC.ipa
+          retention-days: 14

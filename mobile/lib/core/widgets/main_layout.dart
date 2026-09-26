@@ -9,6 +9,9 @@ import '../../features/products/products_screen.dart';
 import '../../features/chat/chat_layout_screen.dart';
 import '../../features/budget/budget_screen.dart';
 import '../../services/api_service.dart';
+import '../../features/auth/login_screen.dart';
+import '../../features/chat/services/presence_service.dart';
+import '../../features/ai_assistant/widgets/floating_ai_assistant_button.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -21,6 +24,8 @@ class _MainLayoutState extends State<MainLayout> {
   int _currentIndex = 0;
   final ApiService _apiService = ApiService();
   final currencyFormat = NumberFormat.currency(symbol: 'QAR ', decimalDigits: 0);
+  int _unreadChatCount = 0;
+  RealtimeChannel? _unreadSubscription;
 
   final List<Widget> _screens = [
     const DashboardScreen(),
@@ -31,6 +36,52 @@ class _MainLayoutState extends State<MainLayout> {
     const ProductsScreen(), // Index 5: Products
     const FoldersScreen(),  // Index 6: Personal
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUnreadChatCount();
+    _setupUnreadSubscription();
+  }
+
+  void _setupUnreadSubscription() {
+    try {
+      _unreadSubscription = Supabase.instance.client
+          .channel('public:chat_messages_main')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'chat_messages',
+            callback: (_) => _loadUnreadChatCount(),
+          )
+          .subscribe();
+    } catch (_) {}
+  }
+
+  Future<void> _loadUnreadChatCount() async {
+    final uid = Supabase.instance.client.auth.currentUser?.id;
+    if (uid == null) return;
+    try {
+      final res = await Supabase.instance.client
+          .from('chat_messages')
+          .select('id')
+          .eq('receiver_id', uid)
+          .eq('is_read', false);
+      if (mounted) {
+        setState(() {
+          _unreadChatCount = (res as List).length;
+        });
+      }
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    if (_unreadSubscription != null) {
+      Supabase.instance.client.removeChannel(_unreadSubscription!);
+    }
+    super.dispose();
+  }
 
   void _showMoreBottomSheet() {
     showModalBottomSheet(
@@ -166,7 +217,18 @@ class _MainLayoutState extends State<MainLayout> {
                     subtitle: const Text('Log out of your account'),
                     onTap: () async {
                       Navigator.pop(sheetContext);
-                      await Supabase.instance.client.auth.signOut();
+                      try {
+                        PresenceService.instance.dispose();
+                        await Supabase.instance.client.auth.signOut();
+                      } catch (e) {
+                        debugPrint('Error during sign out: $e');
+                      }
+                      if (context.mounted) {
+                        Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
+                          MaterialPageRoute(builder: (context) => const LoginScreen()),
+                          (route) => false,
+                        );
+                      }
                     },
                   ),
                   const SizedBox(height: 10),
@@ -185,9 +247,14 @@ class _MainLayoutState extends State<MainLayout> {
     final displayIndex = _currentIndex > 4 ? 4 : _currentIndex;
 
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
+      body: Stack(
+        children: [
+          IndexedStack(
+            index: _currentIndex,
+            children: _screens,
+          ),
+          const FloatingAiAssistantButton(),
+        ],
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: displayIndex,
@@ -200,7 +267,7 @@ class _MainLayoutState extends State<MainLayout> {
             });
           }
         },
-        destinations: const [
+        destinations: [
           NavigationDestination(
             icon: Icon(Icons.grid_view_outlined),
             selectedIcon: Icon(Icons.grid_view_rounded),
@@ -222,8 +289,20 @@ class _MainLayoutState extends State<MainLayout> {
             label: 'Budget',
           ),
           NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline),
-            selectedIcon: Icon(Icons.chat_bubble_rounded),
+            icon: _unreadChatCount > 0
+                ? Badge.count(
+                    count: _unreadChatCount,
+                    backgroundColor: const Color(0xFF25D366),
+                    child: const Icon(Icons.chat_bubble_outline),
+                  )
+                : const Icon(Icons.chat_bubble_outline),
+            selectedIcon: _unreadChatCount > 0
+                ? Badge.count(
+                    count: _unreadChatCount,
+                    backgroundColor: const Color(0xFF25D366),
+                    child: const Icon(Icons.chat_bubble_rounded),
+                  )
+                : const Icon(Icons.chat_bubble_rounded),
             label: 'Chat',
           ),
           NavigationDestination(

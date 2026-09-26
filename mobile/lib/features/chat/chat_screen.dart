@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/api_service.dart';
 import '../../models/site_model.dart';
 import 'chat_detail_screen.dart';
+import 'services/presence_service.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -21,6 +22,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
   @override
   void initState() {
     super.initState();
+    PresenceService.instance.initialize();
     _tabController = TabController(length: 2, vsync: this);
     _employeesFuture = _apiService.getEmployees();
     _sitesFuture = _apiService.getSites();
@@ -67,7 +69,6 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
               final currentUserEmail = Supabase.instance.client.auth.currentUser?.email;
               
               final employees = snapshot.data!.where((e) {
-                // Assuming the employee record has an email or user_id field that matches Auth
                 final email = e['email']?.toString();
                 return email != currentUserEmail;
               }).toList();
@@ -83,14 +84,39 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
                   final id = employee['id']?.toString() ?? '';
                   final name = employee['name'] ?? 'Unknown';
                   final role = employee['role'] ?? 'Employee';
+                  final profileImageUrl = employee['profile_image_url']?.toString();
+                  final isOnline = PresenceService.instance.isUserOnline(id);
                   
                   return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                      child: Text(
-                        name.isNotEmpty ? name[0].toUpperCase() : '?',
-                        style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold),
-                      ),
+                    leading: Stack(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                          backgroundImage: (profileImageUrl != null && profileImageUrl.isNotEmpty)
+                              ? NetworkImage(profileImageUrl)
+                              : null,
+                          child: (profileImageUrl != null && profileImageUrl.isNotEmpty)
+                              ? null
+                              : Text(
+                                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                  style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.bold),
+                                ),
+                        ),
+                        if (isOnline)
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              width: 12,
+                              height: 12,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF25D366),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                     title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
                     subtitle: Text(
@@ -107,6 +133,7 @@ class _ChatScreenState extends State<ChatScreen> with SingleTickerProviderStateM
                             title: name,
                             entityId: id,
                             isGroupChat: false,
+                            avatarUrl: profileImageUrl,
                           ),
                         ),
                       );

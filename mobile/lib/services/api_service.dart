@@ -175,6 +175,15 @@ class ApiService {
     _processResponse(response);
   }
 
+  Future<void> changeEmployeePassword(String employeeId, String newPassword) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/employees/$employeeId/change-password'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'password': newPassword}),
+    );
+    _processResponse(response);
+  }
+
   // -- Tasks --
   Future<List<dynamic>> getTasks(String siteId) async {
     final response = await http.get(Uri.parse('$baseUrl/sites/$siteId/tasks'));

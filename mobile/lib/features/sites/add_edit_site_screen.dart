@@ -159,14 +159,22 @@ class _AddEditSiteScreenState extends State<AddEditSiteScreen> {
                     onTap: () => _selectDate(context),
                   ),
                   const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: _status,
-                    decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder()),
-                    items: ['Active', 'Completed', 'Inactive']
-                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                        .toList(),
-                    onChanged: (val) {
-                      if (val != null) setState(() => _status = val);
+                  Builder(
+                    builder: (context) {
+                      final statusOptions = ['Active', 'Completed', 'Inactive'];
+                      if (!statusOptions.contains(_status)) {
+                        statusOptions.add(_status);
+                      }
+                      return DropdownButtonFormField<String>(
+                        value: _status,
+                        decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder()),
+                        items: statusOptions
+                            .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                            .toList(),
+                        onChanged: (val) {
+                          if (val != null) setState(() => _status = val);
+                        },
+                      );
                     },
                   ),
                   const SizedBox(height: 32),

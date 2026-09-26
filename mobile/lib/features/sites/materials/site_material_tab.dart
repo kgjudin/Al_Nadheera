@@ -5,7 +5,8 @@ import '../../../models/financial_models.dart';
 
 class SiteMaterialTab extends StatefulWidget {
   final String siteId;
-  const SiteMaterialTab({super.key, required this.siteId});
+  final VoidCallback? onDataChanged;
+  const SiteMaterialTab({super.key, required this.siteId, this.onDataChanged});
 
   @override
   State<SiteMaterialTab> createState() => _SiteMaterialTabState();
@@ -152,6 +153,7 @@ class _SiteMaterialTabState extends State<SiteMaterialTab> {
                       try {
                         await _apiService.createMaterial(widget.siteId, data);
                         _loadMaterials();
+                        widget.onDataChanged?.call();
                         messenger.showSnackBar(const SnackBar(content: Text('Material entry added')));
                       } catch (e) {
                         messenger.showSnackBar(SnackBar(content: Text('Error: $e')));

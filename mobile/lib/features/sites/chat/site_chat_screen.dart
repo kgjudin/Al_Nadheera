@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:uuid/uuid.dart';
 
@@ -29,6 +30,7 @@ class _SiteChatScreenState extends State<SiteChatScreen> {
   void initState() {
     super.initState();
     _myUserId = _supabase.auth.currentUser?.id;
+    _markSiteAsRead();
     
     // Listen to real-time changes
     _messagesStream = _supabase
@@ -36,6 +38,13 @@ class _SiteChatScreenState extends State<SiteChatScreen> {
         .stream(primaryKey: ['id'])
         .eq('site_id', widget.siteId)
         .order('created_at', ascending: true);
+  }
+
+  Future<void> _markSiteAsRead() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('site_last_read_${widget.siteId}', DateTime.now().toIso8601String());
+    } catch (_) {}
   }
 
   Future<void> _sendMessage({String? imageUrl}) async {
@@ -116,6 +125,11 @@ class _SiteChatScreenState extends State<SiteChatScreen> {
                 }
                 
                 final messages = snapshot.data ?? [];
+                if (messages.isNotEmpty) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _markSiteAsRead();
+                  });
+                }
                 if (messages.isEmpty) {
                   return const Center(child: Text('No messages yet. Start the conversation!'));
                 }

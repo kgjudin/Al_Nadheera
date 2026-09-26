@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -5,6 +6,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/login_screen.dart';
 import 'core/widgets/main_layout.dart';
+import 'features/chat/services/presence_service.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,13 +34,43 @@ Future<void> main() async {
   runApp(const AlNadheeraApp());
 }
 
-class AlNadheeraApp extends StatelessWidget {
+class AlNadheeraApp extends StatefulWidget {
   const AlNadheeraApp({super.key});
+
+  @override
+  State<AlNadheeraApp> createState() => _AlNadheeraAppState();
+}
+
+class _AlNadheeraAppState extends State<AlNadheeraApp> {
+  StreamSubscription<AuthState>? _authSubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    try {
+      _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
+        if (data.event == AuthChangeEvent.signedOut) {
+          PresenceService.instance.dispose();
+          navigatorKey.currentState?.pushAndRemoveUntil(
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+            (route) => false,
+          );
+        }
+      });
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Al Nadheera Construction',
+      navigatorKey: navigatorKey,
+      title: 'ANCC',
       theme: AppTheme.lightTheme,
       home: const InitialAuthCheck(),
       debugShowCheckedModeBanner: false,

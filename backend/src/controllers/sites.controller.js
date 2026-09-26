@@ -17,15 +17,8 @@ const getSiteFinancials = async (siteId) => {
     supabase.from('additional_expenses').select('amount').eq('site_id', siteId)
   ]);
 
-  const receivedSummary = (summaries || []).reduce((sum, s) => sum + Number(s.received_amount || 0), 0) +
-                          (siteBudgets || []).reduce((sum, b) => sum + Number(b.income_came || 0), 0);
-
-  const spent = (summaries || []).reduce((sum, s) => sum + Number(s.cash_expenses || 0), 0) +
-                (siteBudgets || []).reduce((sum, b) => sum + Number(b.income_spend || 0), 0) +
-                (labours || []).reduce((sum, l) => sum + Number(l.amount || 0), 0) +
-                (materials || []).reduce((sum, m) => sum + Number(m.invoice_amount || 0), 0) +
-                (subcontracts || []).reduce((sum, sc) => sum + Number(sc.invoice_amount || 0), 0) +
-                (additionals || []).reduce((sum, a) => sum + Number(a.amount || 0), 0);
+  const receivedSummary = (summaries || []).reduce((sum, s) => sum + Number(s.received_amount || 0), 0);
+  const spent = (summaries || []).reduce((sum, s) => sum + Number(s.cash_expenses || 0), 0);
 
   return { receivedSummary, spent };
 };

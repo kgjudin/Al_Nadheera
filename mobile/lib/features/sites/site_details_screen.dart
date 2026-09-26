@@ -24,16 +24,42 @@ class SiteDetailsScreen extends StatefulWidget {
   State<SiteDetailsScreen> createState() => _SiteDetailsScreenState();
 }
 
-class _SiteDetailsScreenState extends State<SiteDetailsScreen> {
+class _SiteDetailsScreenState extends State<SiteDetailsScreen> with SingleTickerProviderStateMixin {
   final ApiService _apiService = ApiService();
   final _supabase = Supabase.instance.client;
   late Future<Site> _siteFuture;
-  final currencyFormat = NumberFormat.currency(symbol: 'QAR ', decimalDigits: 0);
+  final currencyFormat = NumberFormat.currency(symbol: 'QAR ', decimalDigits: 2);
   final dateFormat = DateFormat('yyyy-MM-dd');
+  late TabController _tabController;
+  final List<int> _tabRefreshCounts = List.filled(7, 0);
+  int _lastTabIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    _loadSite();
+    _tabController = TabController(length: 7, vsync: this);
+    _tabController.addListener(_handleTabChange);
+  }
+
+  @override
+  void dispose() {
+    _tabController.removeListener(_handleTabChange);
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _handleTabChange() {
+    if (!_tabController.indexIsChanging && _tabController.index != _lastTabIndex) {
+      _lastTabIndex = _tabController.index;
+      _triggerTabRefresh(_lastTabIndex);
+    }
+  }
+
+  void _triggerTabRefresh(int index) {
+    setState(() {
+      _tabRefreshCounts[index]++;
+    });
     _loadSite();
   }
 
@@ -58,11 +84,6 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> {
 
     try {
       final summaries = await _supabase.from('site_summary').select('received_amount, cash_expenses').eq('site_id', widget.siteId);
-      final siteBudgets = await _supabase.from('site_budget').select('income_came, income_spend').eq('site_id', widget.siteId);
-      final labours = await _supabase.from('labour_costs').select('amount').eq('site_id', widget.siteId);
-      final materials = await _supabase.from('material_costs').select('invoice_amount').eq('site_id', widget.siteId);
-      final subcontracts = await _supabase.from('subcontractors').select('invoice_amount').eq('site_id', widget.siteId);
-      final additionals = await _supabase.from('additional_expenses').select('amount').eq('site_id', widget.siteId);
 
       double receivedSum = 0.0;
       double spentSum = 0.0;
@@ -70,22 +91,6 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> {
       for (var s in (summaries as List)) {
         receivedSum += _toDouble(s['received_amount']);
         spentSum += _toDouble(s['cash_expenses']);
-      }
-      for (var b in (siteBudgets as List)) {
-        receivedSum += _toDouble(b['income_came']);
-        spentSum += _toDouble(b['income_spend']);
-      }
-      for (var l in (labours as List)) {
-        spentSum += _toDouble(l['amount']);
-      }
-      for (var m in (materials as List)) {
-        spentSum += _toDouble(m['invoice_amount']);
-      }
-      for (var sc in (subcontracts as List)) {
-        spentSum += _toDouble(sc['invoice_amount']);
-      }
-      for (var a in (additionals as List)) {
-        spentSum += _toDouble(a['amount']);
       }
 
       return Site(
@@ -109,25 +114,18 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 7,
-      child: Scaffold(
-        backgroundColor: const Color(0xFFF4F6FA),
-        appBar: AppBar(
-          backgroundColor: Colors.white,
-          elevation: 0,
-          foregroundColor: const Color(0xFF0A2540),
-          title: const Text('Site Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Refresh Site Data',
-              onPressed: _loadSite,
-            ),
-            IconButton(
-              icon: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF0B5ED7)),
-              tooltip: 'Site Chat',
-              onPressed: () async {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF4F6FA),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        foregroundColor: const Color(0xFF0A2540),
+        title: const Text('Site Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF0B5ED7)),
+            tooltip: 'Site Chat',
+            onPressed: () async {
                 final nav = Navigator.of(context);
                 final site = await _siteFuture.catchError((_) => widget.initialSite!);
                 if (mounted) {
@@ -321,7 +319,7 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
-                                const Text('Total Spent', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                                const Text('Total Spend', style: TextStyle(color: Colors.white70, fontSize: 11)),
                                 const SizedBox(height: 2),
                                 Text(
                                   currencyFormat.format(site?.spent ?? 0),
@@ -355,12 +353,17 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> {
                 Container(
                   color: Colors.white,
                   child: TabBar(
+                    controller: _tabController,
                     isScrollable: true,
                     indicatorColor: const Color(0xFF0B5ED7),
                     indicatorWeight: 3,
                     labelColor: const Color(0xFF0B5ED7),
                     unselectedLabelColor: Colors.grey[600],
                     labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    onTap: (index) {
+                      _lastTabIndex = index;
+                      _triggerTabRefresh(index);
+                    },
                     tabs: const [
                       Tab(icon: Icon(Icons.assessment_outlined, size: 18), text: 'Summary'),
                       Tab(icon: Icon(Icons.check_box_outlined, size: 18), text: 'Tasks'),
@@ -376,14 +379,39 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> {
                 // Tab Contents View
                 Expanded(
                   child: TabBarView(
+                    controller: _tabController,
                     children: [
-                      SiteSummaryTab(siteId: widget.siteId),
-                      SiteTasksTab(siteId: widget.siteId),
-                      SiteLabourTab(siteId: widget.siteId),
-                      SiteMaterialTab(siteId: widget.siteId),
-                      SiteSubcontractorTab(siteId: widget.siteId),
-                      SiteAdditionalExpenseTab(siteId: widget.siteId),
-                      SiteBudgetTab(siteId: widget.siteId),
+                      SiteSummaryTab(
+                        key: ValueKey('summary_${_tabRefreshCounts[0]}'),
+                        siteId: widget.siteId,
+                        onDataChanged: _loadSite,
+                      ),
+                      SiteTasksTab(
+                        key: ValueKey('tasks_${_tabRefreshCounts[1]}'),
+                        siteId: widget.siteId,
+                      ),
+                      SiteLabourTab(
+                        key: ValueKey('labour_${_tabRefreshCounts[2]}'),
+                        siteId: widget.siteId,
+                        onDataChanged: _loadSite,
+                      ),
+                      SiteMaterialTab(
+                        key: ValueKey('material_${_tabRefreshCounts[3]}'),
+                        siteId: widget.siteId,
+                        onDataChanged: _loadSite,
+                      ),
+                      SiteSubcontractorTab(
+                        key: ValueKey('subcontractors_${_tabRefreshCounts[4]}'),
+                        siteId: widget.siteId,
+                      ),
+                      SiteAdditionalExpenseTab(
+                        key: ValueKey('additional_${_tabRefreshCounts[5]}'),
+                        siteId: widget.siteId,
+                      ),
+                      SiteBudgetTab(
+                        key: ValueKey('budget_${_tabRefreshCounts[6]}'),
+                        siteId: widget.siteId,
+                      ),
                     ],
                   ),
                 ),
@@ -391,7 +419,6 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> {
             );
           },
         ),
-      ),
     );
   }
 }

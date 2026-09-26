@@ -43,18 +43,23 @@ class ConversationListItem extends StatelessWidget {
                 CircleAvatar(
                   radius: 24,
                   backgroundColor: isGroup
-                      ? theme.colorScheme.secondary.withOpacity(0.15)
-                      : theme.colorScheme.primary.withOpacity(0.15),
+                      ? theme.colorScheme.secondary.withValues(alpha: 0.15)
+                      : theme.colorScheme.primary.withValues(alpha: 0.15),
+                  backgroundImage: (!isGroup && conversation.avatarUrl != null && conversation.avatarUrl!.isNotEmpty)
+                      ? NetworkImage(conversation.avatarUrl!)
+                      : null,
                   child: isGroup
                       ? Icon(Icons.business_rounded, color: theme.colorScheme.secondary)
-                      : Text(
-                          conversation.title.isNotEmpty ? conversation.title[0].toUpperCase() : '?',
-                          style: TextStyle(
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        ),
+                      : (!isGroup && conversation.avatarUrl != null && conversation.avatarUrl!.isNotEmpty)
+                          ? null
+                          : Text(
+                              conversation.title.isNotEmpty ? conversation.title[0].toUpperCase() : '?',
+                              style: TextStyle(
+                                color: theme.colorScheme.primary,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                              ),
+                            ),
                 ),
                 if (!isGroup && conversation.isOnline)
                   Positioned(
@@ -127,17 +132,20 @@ class ConversationListItem extends StatelessWidget {
                       if (conversation.unreadCount > 0)
                         Container(
                           margin: const EdgeInsets.only(left: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF25D366),
-                            shape: BoxShape.circle,
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF25D366),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Text(
-                            conversation.unreadCount.toString(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
+                          constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+                          child: Center(
+                            child: Text(
+                              conversation.unreadCount > 99 ? '99+' : conversation.unreadCount.toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ),

@@ -192,10 +192,10 @@ class MessageBubble extends StatelessWidget {
                   ),
                   if (isMe) ...[
                     const SizedBox(width: 4),
-                    const Icon(
-                      Icons.done_all_rounded,
+                    Icon(
+                      message.isRead ? Icons.done_all_rounded : Icons.done_rounded,
                       size: 16,
-                      color: Color(0xFF34B7F1), // WhatsApp double tick blue
+                      color: message.isRead ? const Color(0xFF34B7F1) : Colors.grey.shade500,
                     ),
                   ],
                 ],

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'models/chat_message.dart';
+import 'services/presence_service.dart';
 import 'widgets/message_bubble.dart';
 import 'widgets/message_input_bar.dart';
 
@@ -8,12 +10,14 @@ class ChatDetailView extends StatefulWidget {
   final String title;
   final String entityId;
   final bool isGroupChat;
+  final String? avatarUrl;
 
   const ChatDetailView({
     super.key,
     required this.title,
     required this.entityId,
     required this.isGroupChat,
+    this.avatarUrl,
   });
 
   @override
@@ -24,13 +28,52 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   final TextEditingController _messageController = TextEditingController();
   final _supabase = Supabase.instance.client;
   String? _currentUserId;
+  String? _avatarUrl;
 
   ChatMessage? _replyingToMessage;
 
   @override
   void initState() {
     super.initState();
+    _avatarUrl = widget.avatarUrl;
     _currentUserId = _supabase.auth.currentUser?.id;
+    PresenceService.instance.initialize();
+    _markMessagesAsRead();
+    if (_avatarUrl == null && !widget.isGroupChat) {
+      _loadAvatar();
+    }
+  }
+
+  Future<void> _loadAvatar() async {
+    try {
+      final res = await _supabase
+          .from('employees')
+          .select('profile_image_url')
+          .eq('id', widget.entityId)
+          .maybeSingle();
+      if (mounted && res != null && res['profile_image_url'] != null) {
+        setState(() {
+          _avatarUrl = res['profile_image_url']?.toString();
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _markMessagesAsRead() async {
+    if (_currentUserId == null) return;
+    try {
+      if (!widget.isGroupChat) {
+        await _supabase
+            .from('chat_messages')
+            .update({'is_read': true})
+            .eq('receiver_id', _currentUserId!)
+            .eq('sender_id', widget.entityId)
+            .eq('is_read', false);
+      } else {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('site_last_read_${widget.entityId}', DateTime.now().toIso8601String());
+      }
+    } catch (_) {}
   }
 
   Future<void> _sendMessage() async {
@@ -104,11 +147,16 @@ class _ChatDetailViewState extends State<ChatDetailView> {
             CircleAvatar(
               radius: 18,
               backgroundColor: Theme.of(context).colorScheme.surface,
-              child: Icon(
-                widget.isGroupChat ? Icons.business_rounded : Icons.person_rounded,
-                color: Theme.of(context).colorScheme.primary,
-                size: 20,
-              ),
+              backgroundImage: (!widget.isGroupChat && _avatarUrl != null && _avatarUrl!.isNotEmpty)
+                  ? NetworkImage(_avatarUrl!)
+                  : null,
+              child: (!widget.isGroupChat && _avatarUrl != null && _avatarUrl!.isNotEmpty)
+                  ? null
+                  : Icon(
+                      widget.isGroupChat ? Icons.business_rounded : Icons.person_rounded,
+                      color: Theme.of(context).colorScheme.primary,
+                      size: 20,
+                    ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -119,23 +167,49 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                     widget.title,
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
-                  Text(
-                    widget.isGroupChat ? 'Site Group Chat' : 'Online',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.normal,
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.8),
+                  if (widget.isGroupChat)
+                    Text(
+                      'Site Group Chat',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.normal,
+                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
+                      ),
+                    )
+                  else
+                    ValueListenableBuilder<Set<String>>(
+                      valueListenable: PresenceService.instance.onlineUsersNotifier,
+                      builder: (context, onlineIds, _) {
+                        final isOnline = PresenceService.instance.isUserOnline(widget.entityId);
+                        return Row(
+                          children: [
+                            Container(
+                              width: 7,
+                              height: 7,
+                              decoration: BoxDecoration(
+                                color: isOnline ? const Color(0xFF25D366) : Colors.grey.shade400,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              isOnline ? 'Online' : 'Offline',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.normal,
+                                color: isOnline ? const Color(0xFF25D366) : Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
-                  ),
                 ],
               ),
             ),
           ],
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.videocam_rounded), onPressed: () {}),
-          IconButton(icon: const Icon(Icons.call_rounded), onPressed: () {}),
-          IconButton(icon: const Icon(Icons.search_rounded), onPressed: () {}),
           IconButton(icon: const Icon(Icons.more_vert_rounded), onPressed: () {}),
         ],
       ),
@@ -170,6 +244,11 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                 }
 
                 final rawMessages = snapshot.data ?? [];
+                if (rawMessages.any((m) => m['receiver_id'] == _currentUserId && m['is_read'] != true)) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    _markMessagesAsRead();
+                  });
+                }
 
                 if (rawMessages.isEmpty) {
                   return Center(

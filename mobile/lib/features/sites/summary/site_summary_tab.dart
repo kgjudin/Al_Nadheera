@@ -5,7 +5,8 @@ import '../../../models/financial_models.dart';
 
 class SiteSummaryTab extends StatefulWidget {
   final String siteId;
-  const SiteSummaryTab({super.key, required this.siteId});
+  final VoidCallback? onDataChanged;
+  const SiteSummaryTab({super.key, required this.siteId, this.onDataChanged});
 
   @override
   State<SiteSummaryTab> createState() => _SiteSummaryTabState();
@@ -160,6 +161,7 @@ class _SiteSummaryTabState extends State<SiteSummaryTab> {
                       try {
                         await _apiService.createSiteSummary(widget.siteId, data);
                         _loadSummary();
+                        widget.onDataChanged?.call();
                         messenger.showSnackBar(const SnackBar(content: Text('Summary entry added')));
                       } catch (e) {
                         messenger.showSnackBar(SnackBar(content: Text('Error: $e')));

@@ -11,6 +11,7 @@ class ChatMessage {
   final String? replyToSenderName;
   final Map<String, dynamic>? reactions; // e.g. {'👍': ['userId1'], '❤️': ['userId2']}
   final bool isStarred;
+  final bool isRead;
   final DateTime createdAt;
 
   ChatMessage({
@@ -26,6 +27,7 @@ class ChatMessage {
     this.replyToSenderName,
     this.reactions,
     this.isStarred = false,
+    this.isRead = false,
     required this.createdAt,
   });
 
@@ -43,6 +45,7 @@ class ChatMessage {
       replyToSenderName: json['reply_to_sender_name'],
       reactions: json['reactions'] is Map ? Map<String, dynamic>.from(json['reactions']) : null,
       isStarred: json['is_starred'] ?? false,
+      isRead: json['is_read'] ?? false,
       createdAt: json['created_at'] != null 
           ? DateTime.parse(json['created_at']).toLocal() 
           : DateTime.now(),

@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Al Nadheera Construction</string>
+	<string>ANCC</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -45,5 +45,11 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>ANCC requires access to your photo library to select and upload profile pictures and site documentation.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>ANCC requires camera access to capture profile photos and site progress images.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>ANCC requires microphone access to record site videos with audio.</string>
 </dict>
 </plist>

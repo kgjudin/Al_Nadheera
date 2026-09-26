@@ -28,6 +28,7 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
   String? _assignedSiteId;
   List<Site> _sites = [];
   bool _isLoading = false;
+  bool _isLoadingSites = true;
 
   @override
   void initState() {
@@ -50,12 +51,40 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
   Future<void> _fetchSites() async {
     try {
       final sites = await _apiService.getSites();
-      setState(() {
-        _sites = sites;
-      });
+      if (mounted) {
+        setState(() {
+          _sites = sites;
+          _isLoadingSites = false;
+        });
+      }
     } catch (e) {
-      // Handle error
+      if (mounted) {
+        setState(() {
+          _isLoadingSites = false;
+        });
+      }
     }
+  }
+
+  List<DropdownMenuItem<String>> _buildSiteDropdownItems() {
+    final items = <DropdownMenuItem<String>>[
+      const DropdownMenuItem<String>(value: null, child: Text('None')),
+    ];
+
+    if (_assignedSiteId != null && !_sites.any((s) => s.id == _assignedSiteId)) {
+      items.add(
+        DropdownMenuItem<String>(
+          value: _assignedSiteId,
+          child: Text(widget.employee?.assignedSiteName ?? 'Assigned Site'),
+        ),
+      );
+    }
+
+    for (final s in _sites) {
+      items.add(DropdownMenuItem<String>(value: s.id, child: Text(s.name)));
+    }
+
+    return items;
   }
 
   @override
@@ -120,11 +149,172 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
     }
   }
 
+  Future<void> _showChangePasswordDialog() async {
+    final passwordCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    bool obscure = true;
+    bool obscureConfirm = true;
+    String? errorMsg;
+    bool isSubmitting = false;
+
+    await showDialog(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.lock_reset_rounded, color: Theme.of(context).colorScheme.primary),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Change Password',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Update password for ${widget.employee?.name ?? "staff member"}:',
+                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                    ),
+                    const SizedBox(height: 16),
+                    if (errorMsg != null)
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        margin: const EdgeInsets.only(bottom: 14),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.red.shade200),
+                        ),
+                        child: Text(
+                          errorMsg!,
+                          style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+                        ),
+                      ),
+                    TextField(
+                      controller: passwordCtrl,
+                      obscureText: obscure,
+                      decoration: InputDecoration(
+                        labelText: 'New Password',
+                        isDense: true,
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: Icon(obscure ? Icons.visibility_off : Icons.visibility, size: 20),
+                          onPressed: () => setDialogState(() => obscure = !obscure),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: confirmCtrl,
+                      obscureText: obscureConfirm,
+                      decoration: InputDecoration(
+                        labelText: 'Confirm New Password',
+                        isDense: true,
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: Icon(obscureConfirm ? Icons.visibility_off : Icons.visibility, size: 20),
+                          onPressed: () => setDialogState(() => obscureConfirm = !obscureConfirm),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isSubmitting ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isSubmitting
+                      ? null
+                      : () async {
+                          final pwd = passwordCtrl.text.trim();
+                          final confirm = confirmCtrl.text.trim();
+
+                          if (pwd.length < 6) {
+                            setDialogState(() {
+                              errorMsg = 'Password must be at least 6 characters';
+                            });
+                            return;
+                          }
+                          if (pwd != confirm) {
+                            setDialogState(() {
+                              errorMsg = 'Passwords do not match';
+                            });
+                            return;
+                          }
+
+                          setDialogState(() {
+                            isSubmitting = true;
+                            errorMsg = null;
+                          });
+
+                          final messenger = ScaffoldMessenger.of(context);
+                          try {
+                            await _apiService.changeEmployeePassword(widget.employee!.id, pwd);
+                            if (dialogContext.mounted) {
+                              Navigator.pop(dialogContext);
+                            }
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Password updated successfully!'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
+                          } catch (e) {
+                            setDialogState(() {
+                              isSubmitting = false;
+                              errorMsg = e.toString().replaceAll('Exception: ', '');
+                            });
+                          }
+                        },
+                  child: isSubmitting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Update'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.employee == null ? 'Add Employee' : 'Edit Employee'),
+        actions: [
+          if (widget.employee != null)
+            IconButton(
+              icon: const Icon(Icons.lock_reset_rounded),
+              tooltip: 'Change Password',
+              onPressed: _showChangePasswordDialog,
+            ),
+        ],
       ),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator())
@@ -172,27 +362,50 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
                     ),
                     onTap: () => _selectDate(context),
                   ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: _assignedSiteId,
-                    decoration: const InputDecoration(labelText: 'Assign to Site', border: OutlineInputBorder()),
-                    items: [
-                      const DropdownMenuItem<String>(value: null, child: Text('None')),
-                      ..._sites.map((s) => DropdownMenuItem(value: s.id, child: Text(s.name))),
-                    ],
-                    onChanged: (val) {
-                      setState(() => _assignedSiteId = val);
+                  Builder(
+                    builder: (context) {
+                      final siteItems = _buildSiteDropdownItems();
+                      final isValidSite = siteItems.any((item) => item.value == _assignedSiteId);
+                      return DropdownButtonFormField<String>(
+                        value: isValidSite ? _assignedSiteId : null,
+                        decoration: InputDecoration(
+                          labelText: 'Assign to Site',
+                          border: const OutlineInputBorder(),
+                          suffixIcon: _isLoadingSites
+                              ? const Padding(
+                                  padding: EdgeInsets.all(12),
+                                  child: SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                )
+                              : null,
+                        ),
+                        items: siteItems,
+                        onChanged: (val) {
+                          setState(() => _assignedSiteId = val);
+                        },
+                      );
                     },
                   ),
                   const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: _status,
-                    decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder()),
-                    items: ['Active', 'Inactive', 'On Leave']
-                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                        .toList(),
-                    onChanged: (val) {
-                      if (val != null) setState(() => _status = val);
+                  Builder(
+                    builder: (context) {
+                      final statusOptions = ['Active', 'Inactive', 'On Leave'];
+                      if (!statusOptions.contains(_status)) {
+                        statusOptions.add(_status);
+                      }
+                      return DropdownButtonFormField<String>(
+                        value: _status,
+                        decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder()),
+                        items: statusOptions
+                            .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                            .toList(),
+                        onChanged: (val) {
+                          if (val != null) setState(() => _status = val);
+                        },
+                      );
                     },
                   ),
                   const SizedBox(height: 32),
@@ -203,6 +416,17 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
                     ),
                     child: const Text('SAVE EMPLOYEE', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
+                  if (widget.employee != null) ...[
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: _showChangePasswordDialog,
+                      icon: const Icon(Icons.lock_reset_rounded),
+                      label: const Text('CHANGE PASSWORD', style: TextStyle(fontWeight: FontWeight.bold)),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

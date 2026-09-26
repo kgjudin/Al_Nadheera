@@ -105,3 +105,49 @@ exports.deleteEmployee = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+exports.changePassword = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { password } = req.body;
+    
+    if (!password || password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' });
+    }
+
+    // Try updating password in Supabase Auth directly
+    const { data, error } = await supabase.auth.admin.updateUserById(id, {
+      password: password,
+    });
+
+    if (error) {
+      console.warn('Update user password error, checking if user exists:', error.message);
+      // If user doesn't exist in auth yet (e.g. employee without auth account), create one
+      const { data: emp } = await supabase
+        .from('employees')
+        .select('email, name')
+        .eq('id', id)
+        .single();
+
+      if (emp && emp.email) {
+        const { error: createError } = await supabase.auth.admin.createUser({
+          id: id,
+          email: emp.email,
+          password: password,
+          email_confirm: true,
+          user_metadata: { name: emp.name },
+        });
+        if (createError) {
+          return res.status(400).json({ success: false, message: createError.message });
+        }
+        return res.status(200).json({ success: true, message: 'Password set successfully' });
+      }
+      return res.status(400).json({ success: false, message: error.message });
+    }
+
+    res.status(200).json({ success: true, message: 'Password updated successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+

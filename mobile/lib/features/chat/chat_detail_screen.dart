@@ -5,12 +5,14 @@ class ChatDetailScreen extends StatelessWidget {
   final String title;
   final String entityId;
   final bool isGroupChat;
+  final String? avatarUrl;
 
   const ChatDetailScreen({
     super.key,
     required this.title,
     required this.entityId,
     required this.isGroupChat,
+    this.avatarUrl,
   });
 
   @override
@@ -19,6 +21,7 @@ class ChatDetailScreen extends StatelessWidget {
       title: title,
       entityId: entityId,
       isGroupChat: isGroupChat,
+      avatarUrl: avatarUrl,
     );
   }
 }

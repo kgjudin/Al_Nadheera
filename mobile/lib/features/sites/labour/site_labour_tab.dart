@@ -5,7 +5,8 @@ import '../../../models/financial_models.dart';
 
 class SiteLabourTab extends StatefulWidget {
   final String siteId;
-  const SiteLabourTab({super.key, required this.siteId});
+  final VoidCallback? onDataChanged;
+  const SiteLabourTab({super.key, required this.siteId, this.onDataChanged});
 
   @override
   State<SiteLabourTab> createState() => _SiteLabourTabState();
@@ -171,6 +172,7 @@ class _SiteLabourTabState extends State<SiteLabourTab> {
                       try {
                         await _apiService.createLabour(widget.siteId, data);
                         _loadLabour();
+                        widget.onDataChanged?.call();
                         messenger.showSnackBar(const SnackBar(content: Text('Labour entry added')));
                       } catch (e) {
                         messenger.showSnackBar(SnackBar(content: Text('Error: $e')));
