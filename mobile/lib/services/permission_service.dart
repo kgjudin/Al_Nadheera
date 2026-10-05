@@ -144,13 +144,14 @@ class PermissionService extends ChangeNotifier {
         if (match != null) {
           baseMap[mod] = ModulePermission.fromJson(match);
         } else {
-          // Default fallbacks based on role
+          final isRestricted = mod.contains('budget') || mod == AppModules.roleManagement;
+          final isInvoiceOrCust = mod == AppModules.invoices || mod == AppModules.customers;
           baseMap[mod] = ModulePermission(
             moduleKey: mod,
-            canView: _isManager && !mod.contains('budget') && mod != AppModules.roleManagement,
-            canCreate: _isManager && !mod.contains('budget') && mod != AppModules.roleManagement,
-            canEdit: _isManager && !mod.contains('budget') && mod != AppModules.roleManagement,
-            canDelete: false,
+            canView: isInvoiceOrCust || (_isManager && !isRestricted),
+            canCreate: isInvoiceOrCust || (_isManager && !isRestricted),
+            canEdit: isInvoiceOrCust || (_isManager && !isRestricted),
+            canDelete: _isAdmin || (_isManager && isInvoiceOrCust),
           );
         }
       }

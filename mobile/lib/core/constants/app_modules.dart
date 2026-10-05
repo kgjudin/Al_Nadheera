@@ -4,6 +4,8 @@ class AppModules {
   // Top-Level Main Modules
   static const String dashboard = 'dashboard';
   static const String sites = 'sites';
+  static const String invoices = 'invoices';
+  static const String customers = 'customers';
   static const String employees = 'employees';
   static const String budget = 'budget';
   static const String chat = 'chat';
@@ -25,11 +27,13 @@ class AppModules {
   static const List<String> topLevelModules = [
     dashboard,
     sites,
+    invoices,
     employees,
     budget,
     chat,
     products,
     personal,
+    customers,
     roleManagement,
   ];
 
@@ -56,6 +60,10 @@ class AppModules {
         return 'Dashboard';
       case sites:
         return 'Sites';
+      case invoices:
+        return 'Invoices';
+      case customers:
+        return 'Customers';
       case employees:
         return 'Employees';
       case budget:
@@ -81,7 +89,7 @@ class AppModules {
       case siteAdditionalExpenses:
         return 'Additional Expenses';
       case siteBudget:
-        return 'Site Budget';
+        return 'VAT Details';
       case siteChat:
         return 'Site Chat';
       case siteEdit:
@@ -97,6 +105,10 @@ class AppModules {
         return 'Overview cards, overall spending metrics, and project status.';
       case sites:
         return 'List of all construction projects and sites.';
+      case invoices:
+        return 'Create and manage bill statements, invoices, and payment statuses.';
+      case customers:
+        return 'Client directory, billing contacts, and CR/VAT numbers.';
       case employees:
         return 'Directory of staff, engineers, and access assignments.';
       case budget:
@@ -122,7 +134,7 @@ class AppModules {
       case siteAdditionalExpenses:
         return 'Incidentals, equipment rentals, and extra costs.';
       case siteBudget:
-        return 'Site-specific allocated income vs expenditures.';
+        return 'Site VAT breakdown, date filtering, and PDF statement reports.';
       case siteChat:
         return 'Dedicated group conversation for this site team.';
       case siteEdit:
@@ -138,6 +150,10 @@ class AppModules {
         return Icons.dashboard_outlined;
       case sites:
         return Icons.business_outlined;
+      case invoices:
+        return Icons.receipt_long_rounded;
+      case customers:
+        return Icons.groups_outlined;
       case employees:
         return Icons.badge_outlined;
       case budget:
@@ -163,7 +179,7 @@ class AppModules {
       case siteAdditionalExpenses:
         return Icons.receipt_long_outlined;
       case siteBudget:
-        return Icons.account_balance_outlined;
+        return Icons.receipt_long_rounded;
       case siteChat:
         return Icons.forum_outlined;
       case siteEdit:

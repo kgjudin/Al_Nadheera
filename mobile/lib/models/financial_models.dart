@@ -108,6 +108,8 @@ class MaterialCost {
   final double vatAmount;
   final String? remarks;
 
+  double get totalAmount => invoiceAmount + vatAmount;
+
   MaterialCost({
     required this.id,
     required this.siteId,
@@ -142,6 +144,8 @@ class SubcontractorCost {
   final double invoiceAmount;
   final double vatAmount;
   final String? remark;
+
+  double get totalAmount => invoiceAmount + vatAmount;
 
   SubcontractorCost({
     required this.id,

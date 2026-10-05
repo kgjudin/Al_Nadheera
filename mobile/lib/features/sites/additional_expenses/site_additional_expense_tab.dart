@@ -14,7 +14,7 @@ class SiteAdditionalExpenseTab extends StatefulWidget {
 class _SiteAdditionalExpenseTabState extends State<SiteAdditionalExpenseTab> {
   final ApiService _apiService = ApiService();
   late Future<List<AdditionalExpense>> _expensesFuture;
-  final currencyFormat = NumberFormat.currency(symbol: 'QAR ', decimalDigits: 2);
+  final currencyFormat = NumberFormat.currency(symbol: 'BHD ', decimalDigits: 2);
   String _selectedFilter = 'All';
 
   @override
@@ -56,7 +56,7 @@ class _SiteAdditionalExpenseTabState extends State<SiteAdditionalExpenseTab> {
                   const SizedBox(height: 14),
                   TextFormField(
                     controller: amountCtrl,
-                    decoration: const InputDecoration(labelText: 'Amount *', prefixText: 'QAR ', border: OutlineInputBorder()),
+                    decoration: const InputDecoration(labelText: 'Amount *', prefixText: 'BHD ', border: OutlineInputBorder()),
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     validator: (v) => v == null || v.isEmpty ? 'Required' : null,
                   ),
@@ -155,7 +155,7 @@ class _SiteAdditionalExpenseTabState extends State<SiteAdditionalExpenseTab> {
                           children: [
                             const Text('Contingency', style: TextStyle(fontSize: 10, color: Colors.grey)),
                             const SizedBox(height: 2),
-                            Text('QAR 16,667', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey[800])),
+                            Text('BHD 16,667', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey[800])),
                           ],
                         ),
                         Column(
@@ -199,9 +199,9 @@ class _SiteAdditionalExpenseTabState extends State<SiteAdditionalExpenseTab> {
               const SizedBox(height: 16),
 
               if (list.isEmpty) ...[
-                _buildExpenseCard('Government & Statutory Permits', '✔ Paid', const Color(0xFFE6F4EA), const Color(0xFF137333), 'ddd (Municipality Permit & Staging Fee)', '3,333.00 QAR', '2026-09-24', 'CORP-4912', '📎 Receipt.pdf'),
-                _buildExpenseCard('Utilities & Power', 'Review', const Color(0xFFE8F1FF), const Color(0xFF0B5ED7), 'Site Generator Diesel Delivery (500L)', '850.00 QAR', '2026-09-22', 'Direct Debit', '✔ Verified'),
-                _buildExpenseCard('HSE & Safety', 'Approved', const Color(0xFFE6F4EA), const Color(0xFF137333), 'PPE & Fall Protection Harness Sets', '1,420.00 QAR', '2026-09-19', 'Petty Cash', '📎 Invoice_TR.jpg'),
+                _buildExpenseCard('Government & Statutory Permits', '✔ Paid', const Color(0xFFE6F4EA), const Color(0xFF137333), 'ddd (Municipality Permit & Staging Fee)', '3,333.00 BHD', '2026-09-24', 'CORP-4912', '📎 Receipt.pdf'),
+                _buildExpenseCard('Utilities & Power', 'Review', const Color(0xFFE8F1FF), const Color(0xFF0B5ED7), 'Site Generator Diesel Delivery (500L)', '850.00 BHD', '2026-09-22', 'Direct Debit', '✔ Verified'),
+                _buildExpenseCard('HSE & Safety', 'Approved', const Color(0xFFE6F4EA), const Color(0xFF137333), 'PPE & Fall Protection Harness Sets', '1,420.00 BHD', '2026-09-19', 'Petty Cash', '📎 Invoice_TR.jpg'),
               ] else
                 ...list.map(
                   (item) => _buildExpenseCard(

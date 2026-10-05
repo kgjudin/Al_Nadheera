@@ -15,7 +15,7 @@ class SiteLabourTab extends StatefulWidget {
 class _SiteLabourTabState extends State<SiteLabourTab> {
   final ApiService _apiService = ApiService();
   late Future<List<LabourCost>> _labourFuture;
-  final currencyFormat = NumberFormat.currency(symbol: 'QAR ', decimalDigits: 2);
+  final currencyFormat = NumberFormat.currency(symbol: 'BHD ', decimalDigits: 2);
   final DateTime _selectedDate = DateTime.now();
 
   @override
@@ -113,7 +113,7 @@ class _SiteLabourTabState extends State<SiteLabourTab> {
                         controller: rateCtrl,
                         decoration: const InputDecoration(
                           labelText: 'Rate *',
-                          prefixText: 'QAR ',
+                          prefixText: 'BHD ',
                           border: OutlineInputBorder(),
                         ),
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -127,7 +127,7 @@ class _SiteLabourTabState extends State<SiteLabourTab> {
                         controller: amountCtrl,
                         decoration: const InputDecoration(
                           labelText: 'Amount (Qty * Rate)',
-                          prefixText: 'QAR ',
+                          prefixText: 'BHD ',
                           border: OutlineInputBorder(),
                         ),
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -139,7 +139,7 @@ class _SiteLabourTabState extends State<SiteLabourTab> {
                         controller: pendingCtrl,
                         decoration: const InputDecoration(
                           labelText: 'Pending Amount',
-                          prefixText: 'QAR ',
+                          prefixText: 'BHD ',
                           border: OutlineInputBorder(),
                         ),
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -401,7 +401,7 @@ class _SiteLabourTabState extends State<SiteLabourTab> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Qty: $qty • Rate: QAR ${rate.toStringAsFixed(2)}${pending > 0 ? ' • Pending: QAR ${pending.toStringAsFixed(2)}' : ''}', style: TextStyle(fontSize: 12, color: Colors.grey[700], fontWeight: FontWeight.w500)),
+              Text('Qty: $qty • Rate: BHD ${rate.toStringAsFixed(2)}${pending > 0 ? ' • Pending: BHD ${pending.toStringAsFixed(2)}' : ''}', style: TextStyle(fontSize: 12, color: Colors.grey[700], fontWeight: FontWeight.w500)),
               Text(
                 currencyFormat.format(total),
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0A2540)),

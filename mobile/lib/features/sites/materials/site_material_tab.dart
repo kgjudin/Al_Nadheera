@@ -15,7 +15,7 @@ class SiteMaterialTab extends StatefulWidget {
 class _SiteMaterialTabState extends State<SiteMaterialTab> {
   final ApiService _apiService = ApiService();
   late Future<List<MaterialCost>> _materialFuture;
-  final currencyFormat = NumberFormat.currency(symbol: 'QAR ', decimalDigits: 2);
+  final currencyFormat = NumberFormat.currency(symbol: 'BHD ', decimalDigits: 2);
 
   @override
   void initState() {
@@ -102,11 +102,12 @@ class _SiteMaterialTabState extends State<SiteMaterialTab> {
                         controller: invoiceAmountCtrl,
                         decoration: const InputDecoration(
                           labelText: 'Invoice Amount *',
-                          prefixText: 'QAR ',
+                          prefixText: 'BHD ',
                           border: OutlineInputBorder(),
                         ),
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         validator: (v) => v == null || v.trim().isEmpty ? 'Invoice amount is required' : null,
+                        onChanged: (_) => setDialogState(() {}),
                       ),
                       const SizedBox(height: 14),
 
@@ -115,10 +116,38 @@ class _SiteMaterialTabState extends State<SiteMaterialTab> {
                         controller: vatAmountCtrl,
                         decoration: const InputDecoration(
                           labelText: 'VAT Amount',
-                          prefixText: 'QAR ',
+                          prefixText: 'BHD ',
                           border: OutlineInputBorder(),
                         ),
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Calculated Total Preview (Invoice + VAT)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8F1FF),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFF0B5ED7).withValues(alpha: 0.2)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Total (Invoice + VAT):',
+                              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF0A2540)),
+                            ),
+                            Text(
+                              currencyFormat.format(
+                                (double.tryParse(invoiceAmountCtrl.text.trim()) ?? 0.0) +
+                                (double.tryParse(vatAmountCtrl.text.trim()) ?? 0.0),
+                              ),
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF0B5ED7)),
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 14),
 
@@ -185,7 +214,7 @@ class _SiteMaterialTabState extends State<SiteMaterialTab> {
           }
 
           final list = snapshot.data ?? [];
-          final totalBilled = list.fold(0.0, (sum, item) => sum + item.invoiceAmount);
+          final totalBilled = list.fold(0.0, (sum, item) => sum + item.totalAmount);
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
@@ -284,9 +313,9 @@ class _SiteMaterialTabState extends State<SiteMaterialTab> {
               const SizedBox(height: 10),
 
               if (list.isEmpty) ...[
-                _buildMaterialCard('Judin', 'Received & Stored', const Color(0xFFE6F4EA), const Color(0xFF137333), 'High-Tensile Reinforcement Mesh', '3841', '2026-09-24', 3000.0),
-                _buildMaterialCard('Gulf ReadyMix', 'Verified On-site', const Color(0xFFE8F1FF), const Color(0xFF0B5ED7), 'Grade 40 Concrete Curing (45m³)', '3912', '2026-09-21', 4500.0),
-                _buildMaterialCard('Bahrain Timber Works', 'Pending Inspection', const Color(0xFFFFF7ED), const Color(0xFFC2410C), 'Marine Plywood Formwork Sheets', '3911', '2026-09-21', 1500.0),
+                _buildMaterialCard('Judin', 'Received & Stored', const Color(0xFFE6F4EA), const Color(0xFF137333), 'High-Tensile Reinforcement Mesh', '3841', '2026-09-24', 3000.0, vatAmount: 150.0),
+                _buildMaterialCard('Gulf ReadyMix', 'Verified On-site', const Color(0xFFE8F1FF), const Color(0xFF0B5ED7), 'Grade 40 Concrete Curing (45m³)', '3912', '2026-09-21', 4500.0, vatAmount: 225.0),
+                _buildMaterialCard('Bahrain Timber Works', 'Pending Inspection', const Color(0xFFFFF7ED), const Color(0xFFC2410C), 'Marine Plywood Formwork Sheets', '3911', '2026-09-21', 1500.0, vatAmount: 75.0),
               ] else
                 ...list.map(
                   (item) => _buildMaterialCard(
@@ -298,6 +327,7 @@ class _SiteMaterialTabState extends State<SiteMaterialTab> {
                     item.invoiceNumber ?? 'N/A',
                     DateFormat('yyyy-MM-dd').format(item.date),
                     item.invoiceAmount,
+                    vatAmount: item.vatAmount,
                   ),
                 ),
             ],
@@ -332,8 +362,11 @@ class _SiteMaterialTabState extends State<SiteMaterialTab> {
     String title,
     String invNo,
     String date,
-    double amount,
-  ) {
+    double invoiceAmount, {
+    double vatAmount = 0.0,
+  }) {
+    final totalAmount = invoiceAmount + vatAmount;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -367,9 +400,19 @@ class _SiteMaterialTabState extends State<SiteMaterialTab> {
                   ),
                 ],
               ),
-              Text(
-                currencyFormat.format(amount),
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0A2540)),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    currencyFormat.format(invoiceAmount),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0A2540)),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Total: ${currencyFormat.format(totalAmount)}',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF137333)),
+                  ),
+                ],
               ),
             ],
           ),
@@ -384,6 +427,28 @@ class _SiteMaterialTabState extends State<SiteMaterialTab> {
               Text('Inv: $invNo   •   📅 $date', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
               const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
             ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Inv: ${currencyFormat.format(invoiceAmount)}  +  VAT: ${currencyFormat.format(vatAmount)}',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[700], fontWeight: FontWeight.w500),
+                ),
+                Text(
+                  'Total: ${currencyFormat.format(totalAmount)}',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0A2540)),
+                ),
+              ],
+            ),
           ),
         ],
       ),

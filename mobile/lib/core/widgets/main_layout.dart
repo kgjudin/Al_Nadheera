@@ -15,6 +15,9 @@ import '../../core/constants/app_modules.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/chat/services/presence_service.dart';
 import '../../features/ai_assistant/widgets/floating_ai_assistant_button.dart';
+import '../../features/invoices/invoices_screen.dart';
+import '../../features/customers/customers_screen.dart';
+import '../../features/document_templates/document_template_settings_screen.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -27,7 +30,7 @@ class _MainLayoutState extends State<MainLayout> {
   int _currentIndex = 0;
   final ApiService _apiService = ApiService();
   final _permissionService = PermissionService.instance;
-  final currencyFormat = NumberFormat.currency(symbol: 'QAR ', decimalDigits: 0);
+  final currencyFormat = NumberFormat.currency(symbol: 'BHD ', decimalDigits: 0);
   int _unreadChatCount = 0;
   RealtimeChannel? _unreadSubscription;
 
@@ -89,25 +92,33 @@ class _MainLayoutState extends State<MainLayout> {
             ? const SiteListScreen()
             : const _AccessRestrictedView(moduleTitle: 'Sites Directory');
       case 2:
+        return _permissionService.canView(AppModules.invoices)
+            ? const InvoicesScreen()
+            : const _AccessRestrictedView(moduleTitle: 'Invoices & Billing');
+      case 3:
         return _permissionService.canView(AppModules.employees)
             ? const EmployeeListScreen()
             : const _AccessRestrictedView(moduleTitle: 'Employees & Staff');
-      case 3:
-        return _permissionService.canView(AppModules.budget)
-            ? const BudgetScreen()
-            : const _AccessRestrictedView(moduleTitle: 'Company Budget');
       case 4:
         return _permissionService.canView(AppModules.chat)
             ? const ChatLayoutScreen()
             : const _AccessRestrictedView(moduleTitle: 'Team Chat');
       case 5:
+        return _permissionService.canView(AppModules.budget)
+            ? const BudgetScreen()
+            : const _AccessRestrictedView(moduleTitle: 'Accounts');
+      case 6:
         return _permissionService.canView(AppModules.products)
             ? const ProductsScreen()
             : const _AccessRestrictedView(moduleTitle: 'Products Catalog');
-      case 6:
+      case 7:
         return _permissionService.canView(AppModules.personal)
             ? const FoldersScreen()
             : const _AccessRestrictedView(moduleTitle: 'Personal Notes');
+      case 8:
+        return _permissionService.canView(AppModules.customers)
+            ? const CustomersScreen()
+            : const _AccessRestrictedView(moduleTitle: 'Customers Directory');
       default:
         return const DashboardScreen();
     }
@@ -234,7 +245,76 @@ class _MainLayoutState extends State<MainLayout> {
                     const Divider(height: 1),
                   ],
 
-                  // Option 1: Products
+                  // Option: Accounts (Company & Site Budgets)
+                  if (canViewBudget) ...[
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.green[50],
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.account_balance_wallet_rounded, color: Colors.green),
+                      ),
+                      title: const Text('Accounts', style: TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: const Text('Company & site budgets, income, expenses, and allocations'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        setState(() => _currentIndex = 5);
+                      },
+                    ),
+                    const Divider(height: 1),
+                  ],
+
+                  // Option: Document & Print Formats (Logo, Seal, Signature, Template Settings)
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0A2540).withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.print_rounded, color: Color(0xFF0A2540)),
+                    ),
+                    title: const Text('Document & Print Formats', style: TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: const Text('Company logo, seal, signature, address, and bill templates'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const DocumentTemplateSettingsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const Divider(height: 1),
+
+                  // Option: Customers Directory
+                  if (_permissionService.canView(AppModules.customers)) ...[
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0A2540).withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.groups_rounded, color: Color(0xFF0A2540)),
+                      ),
+                      title: const Text('Customers Directory', style: TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: const Text('Manage clients, billing contacts, and VAT numbers'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        setState(() => _currentIndex = 8);
+                      },
+                    ),
+                    const Divider(height: 1),
+                  ],
+
+                  // Option: Products
                   if (_permissionService.canView(AppModules.products)) ...[
                     ListTile(
                       leading: Container(
@@ -250,13 +330,13 @@ class _MainLayoutState extends State<MainLayout> {
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () {
                         Navigator.pop(sheetContext);
-                        setState(() => _currentIndex = 5);
+                        setState(() => _currentIndex = 6);
                       },
                     ),
                     const Divider(height: 1),
                   ],
 
-                  // Option 2: Personal Folders
+                  // Option: Personal Folders
                   if (_permissionService.canView(AppModules.personal)) ...[
                     ListTile(
                       leading: Container(
@@ -272,13 +352,13 @@ class _MainLayoutState extends State<MainLayout> {
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () {
                         Navigator.pop(sheetContext);
-                        setState(() => _currentIndex = 6);
+                        setState(() => _currentIndex = 7);
                       },
                     ),
                     const Divider(height: 1),
                   ],
 
-                  // Option 3: Account Sign Out
+                  // Option: Account Sign Out
                   ListTile(
                     leading: Container(
                       padding: const EdgeInsets.all(8),
@@ -318,7 +398,7 @@ class _MainLayoutState extends State<MainLayout> {
 
   @override
   Widget build(BuildContext context) {
-    final displayIndex = _currentIndex > 4 ? 4 : _currentIndex;
+    final displayIndex = _currentIndex > 4 ? 5 : _currentIndex;
 
     return AnimatedBuilder(
       animation: _permissionService,
@@ -353,14 +433,14 @@ class _MainLayoutState extends State<MainLayout> {
                 label: 'Sites',
               ),
               const NavigationDestination(
+                icon: Icon(Icons.receipt_long_outlined),
+                selectedIcon: Icon(Icons.receipt_long_rounded),
+                label: 'Invoice',
+              ),
+              const NavigationDestination(
                 icon: Icon(Icons.people_outline),
                 selectedIcon: Icon(Icons.people_rounded),
                 label: 'Staff',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.account_balance_wallet_outlined),
-                selectedIcon: Icon(Icons.account_balance_wallet_rounded),
-                label: 'Budget',
               ),
               NavigationDestination(
                 icon: _unreadChatCount > 0

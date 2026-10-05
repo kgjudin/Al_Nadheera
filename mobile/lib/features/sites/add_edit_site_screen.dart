@@ -20,7 +20,6 @@ class _AddEditSiteScreenState extends State<AddEditSiteScreen> {
   late TextEditingController _codeController;
   late TextEditingController _clientController;
   late TextEditingController _locationController;
-  late TextEditingController _budgetController;
   
   DateTime? _startDate;
   String _status = 'Active';
@@ -33,7 +32,6 @@ class _AddEditSiteScreenState extends State<AddEditSiteScreen> {
     _codeController = TextEditingController(text: widget.site?.code ?? '');
     _clientController = TextEditingController(text: widget.site?.clientName ?? '');
     _locationController = TextEditingController(text: widget.site?.location ?? '');
-    _budgetController = TextEditingController(text: widget.site != null ? widget.site!.assignedBudget.toString() : '');
     
     _startDate = widget.site?.startDate;
     if (widget.site != null) {
@@ -47,7 +45,6 @@ class _AddEditSiteScreenState extends State<AddEditSiteScreen> {
     _codeController.dispose();
     _clientController.dispose();
     _locationController.dispose();
-    _budgetController.dispose();
     super.dispose();
   }
 
@@ -64,7 +61,7 @@ class _AddEditSiteScreenState extends State<AddEditSiteScreen> {
         'location': _locationController.text.trim(),
         'start_date': _startDate?.toIso8601String(),
         'status': _status,
-        'assigned_budget': double.tryParse(_budgetController.text.trim()) ?? 0,
+        'assigned_budget': widget.site?.assignedBudget ?? 0.0,
       };
 
       if (widget.site == null) {
@@ -137,17 +134,7 @@ class _AddEditSiteScreenState extends State<AddEditSiteScreen> {
                     controller: _locationController,
                     decoration: const InputDecoration(labelText: 'Site Location', border: OutlineInputBorder()),
                   ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _budgetController,
-                    decoration: const InputDecoration(labelText: 'Assigned Budget *', border: OutlineInputBorder(), prefixText: 'QAR '),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) return 'Assigned Budget is required';
-                      if (double.tryParse(value) == null) return 'Must be a valid number';
-                      return null;
-                    },
-                  ),
+
                   const SizedBox(height: 16),
                   ListTile(
                     title: Text(_startDate == null ? 'Select Start Date' : 'Start Date: ${DateFormat('yyyy-MM-dd').format(_startDate!)}'),

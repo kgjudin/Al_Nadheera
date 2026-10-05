@@ -197,6 +197,10 @@ class ApiService {
     final response = await http.put(Uri.parse('$baseUrl/sites/tasks/$id'), headers: {'Content-Type': 'application/json'}, body: json.encode(data));
     _processResponse(response);
   }
+  Future<void> deleteTask(String id) async {
+    final response = await http.delete(Uri.parse('$baseUrl/sites/tasks/$id'));
+    _processResponse(response);
+  }
 
   // -- Products --
   Future<List<Product>> getProducts() async {

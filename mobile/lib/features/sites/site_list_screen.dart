@@ -16,7 +16,7 @@ class SiteListScreen extends StatefulWidget {
 class _SiteListScreenState extends State<SiteListScreen> {
   final ApiService _apiService = ApiService();
   late Future<List<Site>> _sitesFuture;
-  final currencyFormat = NumberFormat.currency(symbol: '', decimalDigits: 0);
+  final currencyFormat = NumberFormat.currency(symbol: 'BHD ', decimalDigits: 0);
 
   @override
   void initState() {

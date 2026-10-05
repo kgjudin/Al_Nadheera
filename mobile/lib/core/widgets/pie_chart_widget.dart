@@ -28,7 +28,7 @@ class PieChartWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(symbol: 'QAR ', decimalDigits: 0);
+    final currencyFormat = NumberFormat.currency(symbol: 'BHD ', decimalDigits: 0);
     final totalSpent = expenses.fold(0.0, (sum, e) => sum + e.amount);
     final remaining = max(0.0, totalIncome - totalSpent);
     final isOverBudget = totalSpent > totalIncome;

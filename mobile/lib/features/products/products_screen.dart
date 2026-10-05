@@ -137,7 +137,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       decoration: const InputDecoration(
                         labelText: 'Price',
                         border: OutlineInputBorder(),
-                        prefixText: 'QAR ',
+                        prefixText: 'BHD ',
                       ),
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       validator: (value) {
@@ -352,7 +352,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'QAR ${product.price.toStringAsFixed(2)}',
+                          'BHD ${product.price.toStringAsFixed(2)}',
                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
                                 color: Theme.of(context).colorScheme.primary,
                                 fontWeight: FontWeight.bold,

@@ -46,7 +46,7 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
   final _permissionService = PermissionService.instance;
 
   late Future<Site> _siteFuture;
-  final currencyFormat = NumberFormat.currency(symbol: 'QAR ', decimalDigits: 2);
+  final currencyFormat = NumberFormat.currency(symbol: 'BHD ', decimalDigits: 2);
   final dateFormat = DateFormat('yyyy-MM-dd');
 
   TabController? _tabController;
@@ -131,11 +131,12 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
       ),
       _SiteTabDefinition(
         key: AppModules.siteBudget,
-        title: 'Budget',
-        icon: Icons.account_balance_wallet_outlined,
+        title: 'VAT Details',
+        icon: Icons.receipt_long_rounded,
         builder: (refreshCount) => SiteBudgetTab(
-          key: ValueKey('budget_$refreshCount'),
+          key: ValueKey('vat_details_$refreshCount'),
           siteId: widget.siteId,
+          siteName: widget.initialSite?.name,
         ),
       ),
     ];

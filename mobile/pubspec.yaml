@@ -48,6 +48,8 @@ dependencies:
   timeago: ^3.7.1
   google_fonts: ^6.3.2
   flutter_markdown: ^0.7.7+1
+  pdf: ^3.13.1
+  printing: ^5.15.1
 
 dev_dependencies:
   flutter_test:

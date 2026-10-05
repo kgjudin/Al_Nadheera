@@ -15,7 +15,7 @@ class SiteSummaryTab extends StatefulWidget {
 class _SiteSummaryTabState extends State<SiteSummaryTab> {
   final ApiService _apiService = ApiService();
   late Future<List<SiteSummary>> _summaryFuture;
-  final currencyFormat = NumberFormat.currency(symbol: 'QAR ', decimalDigits: 2);
+  final currencyFormat = NumberFormat.currency(symbol: 'BHD ', decimalDigits: 2);
   DateTime _selectedDate = DateTime.now();
 
   @override
@@ -88,7 +88,7 @@ class _SiteSummaryTabState extends State<SiteSummaryTab> {
                         controller: receivedCtrl,
                         decoration: const InputDecoration(
                           labelText: 'Received Amount (Given Amount) *',
-                          prefixText: 'QAR ',
+                          prefixText: 'BHD ',
                           border: OutlineInputBorder(),
                         ),
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -101,7 +101,7 @@ class _SiteSummaryTabState extends State<SiteSummaryTab> {
                         controller: expensesCtrl,
                         decoration: const InputDecoration(
                           labelText: 'Cash Expense (Spend Amount) *',
-                          prefixText: 'QAR ',
+                          prefixText: 'BHD ',
                           border: OutlineInputBorder(),
                         ),
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -114,7 +114,7 @@ class _SiteSummaryTabState extends State<SiteSummaryTab> {
                         controller: amountCtrl,
                         decoration: const InputDecoration(
                           labelText: 'Amount (Spend Amount)',
-                          prefixText: 'QAR ',
+                          prefixText: 'BHD ',
                           border: OutlineInputBorder(),
                         ),
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -126,7 +126,7 @@ class _SiteSummaryTabState extends State<SiteSummaryTab> {
                         controller: balanceCtrl,
                         decoration: const InputDecoration(
                           labelText: 'Balance (Given - Spend)',
-                          prefixText: 'QAR ',
+                          prefixText: 'BHD ',
                           border: OutlineInputBorder(),
                         ),
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),

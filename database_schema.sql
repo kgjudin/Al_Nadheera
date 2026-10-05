@@ -288,3 +288,122 @@ CREATE TABLE IF NOT EXISTS public.role_permissions (
 ALTER TABLE public.employees 
 ADD COLUMN IF NOT EXISTS role_id UUID REFERENCES public.roles(id) ON DELETE SET NULL,
 ADD COLUMN IF NOT EXISTS custom_permissions JSONB DEFAULT NULL;
+
+-- 15. Customers Table
+CREATE TABLE IF NOT EXISTS public.customers (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    phone TEXT,
+    email TEXT,
+    address TEXT,
+    vat_number TEXT,
+    cr_number TEXT,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 16. Invoices Table
+CREATE TABLE IF NOT EXISTS public.invoices (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    invoice_number TEXT NOT NULL UNIQUE,
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    due_date DATE,
+    status TEXT NOT NULL DEFAULT 'Pending',
+    customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
+    customer_name TEXT NOT NULL,
+    customer_phone TEXT,
+    customer_address TEXT,
+    customer_vat_number TEXT,
+    site_id UUID REFERENCES public.sites(id) ON DELETE SET NULL,
+    site_name TEXT,
+    description TEXT,
+    subtotal NUMERIC NOT NULL DEFAULT 0,
+    discount NUMERIC NOT NULL DEFAULT 0,
+    discount_type TEXT DEFAULT 'amount',
+    vat_rate NUMERIC DEFAULT 0,
+    vat_amount NUMERIC DEFAULT 0,
+    total_amount NUMERIC NOT NULL DEFAULT 0,
+    notes TEXT,
+    payment_terms TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 17. Invoice Items Table
+CREATE TABLE IF NOT EXISTS public.invoice_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    invoice_id UUID REFERENCES public.invoices(id) ON DELETE CASCADE,
+    item_description TEXT NOT NULL,
+    quantity NUMERIC NOT NULL DEFAULT 1,
+    unit_price NUMERIC NOT NULL DEFAULT 0,
+    amount NUMERIC NOT NULL DEFAULT 0,
+    sort_order INT DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.invoice_items ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow authenticated full access to customers" ON public.customers FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow authenticated full access to invoices" ON public.invoices FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow authenticated full access to invoice_items" ON public.invoice_items FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- 18. Document Templates Table (Print & Bill Document Formatting Settings)
+CREATE TABLE IF NOT EXISTS public.document_templates (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    template_type TEXT NOT NULL UNIQUE,
+    template_name TEXT NOT NULL,
+    company_name_en TEXT NOT NULL DEFAULT 'AL NADHEERA CONTRACTING W.L.L',
+    company_name_ar TEXT DEFAULT 'شركة النذيرة للمقاولات ذ.م.م',
+    tagline TEXT DEFAULT 'Civil Engineering & General Contracting',
+    logo_url TEXT,
+    seal_url TEXT,
+    signature_url TEXT,
+    address TEXT DEFAULT 'Kingdom of Bahrain • Manama',
+    phone TEXT DEFAULT '+973 3982 4512 / +973 1740 1234',
+    email TEXT DEFAULT 'info@alnadheera.com',
+    website TEXT DEFAULT 'www.alnadheera.com',
+    cr_number TEXT DEFAULT '142857-1',
+    vat_number TEXT DEFAULT '200014589200003',
+    bank_name TEXT DEFAULT 'National Bank of Bahrain (NBB)',
+    account_name TEXT DEFAULT 'AL NADHEERA CONTRACTING W.L.L',
+    iban TEXT DEFAULT 'BH64 NBOB 0000 0012 3456 7890 01',
+    swift_code TEXT DEFAULT 'NBOBBHBM',
+    terms_and_conditions TEXT DEFAULT 'Payment is due within 14 days of invoice date. Thank you for your business.',
+    footer_text TEXT DEFAULT 'Al Nadheera Contracting W.L.L. • Kingdom of Bahrain',
+    primary_color TEXT DEFAULT '#0A2540',
+    accent_color TEXT DEFAULT '#0B5ED7',
+    show_seal BOOLEAN DEFAULT true,
+    show_signature BOOLEAN DEFAULT true,
+    show_bank_details BOOLEAN DEFAULT true,
+    is_default BOOLEAN DEFAULT true,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.document_templates ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow authenticated full access to document_templates" ON public.document_templates FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- 19. Site Budget Transactions Table (Company Budget Allocation, Add/Reduce Audit Trail)
+CREATE TABLE IF NOT EXISTS public.site_budget_transactions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    site_id UUID REFERENCES public.sites(id) ON DELETE CASCADE,
+    site_name TEXT NOT NULL,
+    transaction_type TEXT NOT NULL, -- 'add', 'reduce', 'set'
+    amount NUMERIC NOT NULL,
+    previous_budget NUMERIC NOT NULL DEFAULT 0,
+    new_budget NUMERIC NOT NULL DEFAULT 0,
+    reason TEXT,
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    created_by TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.site_budget_transactions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow authenticated full access to site_budget_transactions" ON public.site_budget_transactions FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+
+

@@ -14,7 +14,7 @@ class SiteSubcontractorTab extends StatefulWidget {
 class _SiteSubcontractorTabState extends State<SiteSubcontractorTab> {
   final ApiService _apiService = ApiService();
   late Future<List<SubcontractorCost>> _subcontractorFuture;
-  final currencyFormat = NumberFormat.currency(symbol: 'QAR ', decimalDigits: 2);
+  final currencyFormat = NumberFormat.currency(symbol: 'BHD ', decimalDigits: 2);
 
   @override
   void initState() {
@@ -101,11 +101,12 @@ class _SiteSubcontractorTabState extends State<SiteSubcontractorTab> {
                         controller: invoiceAmountCtrl,
                         decoration: const InputDecoration(
                           labelText: 'Invoice Amount *',
-                          prefixText: 'QAR ',
+                          prefixText: 'BHD ',
                           border: OutlineInputBorder(),
                         ),
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         validator: (v) => v == null || v.trim().isEmpty ? 'Invoice amount is required' : null,
+                        onChanged: (_) => setDialogState(() {}),
                       ),
                       const SizedBox(height: 14),
 
@@ -114,10 +115,38 @@ class _SiteSubcontractorTabState extends State<SiteSubcontractorTab> {
                         controller: vatAmountCtrl,
                         decoration: const InputDecoration(
                           labelText: 'VAT Amount',
-                          prefixText: 'QAR ',
+                          prefixText: 'BHD ',
                           border: OutlineInputBorder(),
                         ),
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        onChanged: (_) => setDialogState(() {}),
+                      ),
+                      const SizedBox(height: 12),
+
+                      // Calculated Total Preview (Invoice + VAT)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8F1FF),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFF0B5ED7).withValues(alpha: 0.2)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Total (Invoice + VAT):',
+                              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF0A2540)),
+                            ),
+                            Text(
+                              currencyFormat.format(
+                                (double.tryParse(invoiceAmountCtrl.text.trim()) ?? 0.0) +
+                                (double.tryParse(vatAmountCtrl.text.trim()) ?? 0.0),
+                              ),
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF0B5ED7)),
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 14),
 
@@ -183,7 +212,7 @@ class _SiteSubcontractorTabState extends State<SiteSubcontractorTab> {
           }
 
           final list = snapshot.data ?? [];
-          final totalCommitted = list.fold(0.0, (sum, item) => sum + item.invoiceAmount);
+          final totalCommitted = list.fold(0.0, (sum, item) => sum + item.totalAmount);
           final retentionAmount = totalCommitted * 0.10;
 
           return ListView(
@@ -251,22 +280,23 @@ class _SiteSubcontractorTabState extends State<SiteSubcontractorTab> {
               const SizedBox(height: 10),
 
               if (list.isEmpty) ...[
-                _buildSubcontractorCard('R', 'Rast', 'Excavation & Ground Prep', '5,999.00 QAR', '1911', '2026-09-24', '✔ Certified', const Color(0xFFE6F4EA), const Color(0xFF137333), 'Milestone: Phase 1 Ground Prep'),
-                _buildSubcontractorCard('AM', 'Al-Manama Dewatering Co.', 'Sub-Surface Drainage', '3,200.00 QAR', '1908', '2026-09-20', 'Under Review', const Color(0xFFFFF7ED), const Color(0xFFC2410C), 'Deep Well Dewatering (80%)'),
-                _buildSubcontractorCard('GP', 'Gulf Piling & Geotech', 'Foundation & Shoring Works', '12,500.00 QAR', '1899', '2026-09-18', '✔ Approved', const Color(0xFFE6F4EA), const Color(0xFF137333), 'Bored Cast Piling QA Passed'),
+                _buildSubcontractorCard('R', 'Rast', 'Excavation & Ground Prep', 5999.00, '1911', '2026-09-24', '✔ Certified', const Color(0xFFE6F4EA), const Color(0xFF137333), 'Milestone: Phase 1 Ground Prep', vatAmount: 300.0),
+                _buildSubcontractorCard('AM', 'Al-Manama Dewatering Co.', 'Sub-Surface Drainage', 3200.00, '1908', '2026-09-20', 'Under Review', const Color(0xFFFFF7ED), const Color(0xFFC2410C), 'Deep Well Dewatering (80%)', vatAmount: 160.0),
+                _buildSubcontractorCard('GP', 'Gulf Piling & Geotech', 'Foundation & Shoring Works', 12500.00, '1899', '2026-09-18', '✔ Approved', const Color(0xFFE6F4EA), const Color(0xFF137333), 'Bored Cast Piling QA Passed', vatAmount: 625.0),
               ] else
                 ...list.map(
                   (item) => _buildSubcontractorCard(
                     item.supplierName[0].toUpperCase(),
                     item.supplierName,
                     item.remark != null && item.remark!.isNotEmpty ? item.remark! : 'Sub-Contractor Work',
-                    currencyFormat.format(item.invoiceAmount),
+                    item.invoiceAmount,
                     item.invoiceNumber ?? 'N/A',
                     DateFormat('yyyy-MM-dd').format(item.date),
                     'Certified',
                     const Color(0xFFE6F4EA),
                     const Color(0xFF137333),
                     'Milestone Verified',
+                    vatAmount: item.vatAmount,
                   ),
                 ),
             ],
@@ -297,14 +327,17 @@ class _SiteSubcontractorTabState extends State<SiteSubcontractorTab> {
     String avatarText,
     String name,
     String subtitle,
-    String amount,
+    double invoiceAmount,
     String invNo,
     String date,
     String status,
     Color statusBg,
     Color statusColor,
-    String milestone,
-  ) {
+    String milestone, {
+    double vatAmount = 0.0,
+  }) {
+    final totalAmount = invoiceAmount + vatAmount;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -338,7 +371,20 @@ class _SiteSubcontractorTabState extends State<SiteSubcontractorTab> {
                   ),
                 ],
               ),
-              Text(amount, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0A2540))),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    currencyFormat.format(invoiceAmount),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF0A2540)),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Total: ${currencyFormat.format(totalAmount)}',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF137333)),
+                  ),
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -362,6 +408,28 @@ class _SiteSubcontractorTabState extends State<SiteSubcontractorTab> {
               const SizedBox(width: 4),
               Text(milestone, style: TextStyle(fontSize: 11, color: Colors.grey[700], fontWeight: FontWeight.w500)),
             ],
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Inv: ${currencyFormat.format(invoiceAmount)}  +  VAT: ${currencyFormat.format(vatAmount)}',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[700], fontWeight: FontWeight.w500),
+                ),
+                Text(
+                  'Total: ${currencyFormat.format(totalAmount)}',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0A2540)),
+                ),
+              ],
+            ),
           ),
         ],
       ),

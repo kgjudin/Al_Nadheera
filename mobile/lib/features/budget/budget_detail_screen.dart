@@ -17,7 +17,7 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
   final _supabase = Supabase.instance.client;
   late IncomeSection _currentSection;
   late Future<List<IncomeExpense>> _expensesFuture;
-  final currencyFormat = NumberFormat.currency(symbol: 'QAR ', decimalDigits: 0);
+  final currencyFormat = NumberFormat.currency(symbol: 'BHD ', decimalDigits: 0);
   final dateFormat = DateFormat('yyyy-MM-dd');
 
   @override
@@ -93,7 +93,7 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
                       controller: amountCtrl,
                       decoration: const InputDecoration(
                         labelText: 'Income Amount *',
-                        prefixText: 'QAR ',
+                        prefixText: 'BHD ',
                         border: OutlineInputBorder(),
                       ),
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -218,7 +218,7 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
                       controller: amountCtrl,
                       decoration: const InputDecoration(
                         labelText: 'Spent Amount (Income Gone) *',
-                        prefixText: 'QAR ',
+                        prefixText: 'BHD ',
                         border: OutlineInputBorder(),
                       ),
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),

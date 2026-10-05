@@ -12,8 +12,8 @@ const getSiteFinancials = async (siteId) => {
     supabase.from('site_summary').select('received_amount, cash_expenses').eq('site_id', siteId),
     supabase.from('site_budget').select('income_came, income_spend').eq('site_id', siteId),
     supabase.from('labour_costs').select('amount').eq('site_id', siteId),
-    supabase.from('material_costs').select('invoice_amount').eq('site_id', siteId),
-    supabase.from('subcontractors').select('invoice_amount').eq('site_id', siteId),
+    supabase.from('material_costs').select('invoice_amount, vat_amount').eq('site_id', siteId),
+    supabase.from('subcontractors').select('invoice_amount, vat_amount').eq('site_id', siteId),
     supabase.from('additional_expenses').select('amount').eq('site_id', siteId)
   ]);
 
@@ -58,13 +58,15 @@ exports.getSiteById = async (req, res) => {
 exports.createSite = async (req, res) => {
   try {
     const { name, code, client_name, location, start_date, status, assigned_budget } = req.body;
-    if (!name || assigned_budget === undefined) {
-      return res.status(422).json({ success: false, message: 'Name and assigned_budget are required' });
+    if (!name) {
+      return res.status(422).json({ success: false, message: 'Site name is required' });
     }
     
+    const budgetValue = assigned_budget !== undefined && assigned_budget !== null ? Number(assigned_budget) : 0;
+
     const { data, error } = await supabase
       .from('sites')
-      .insert([{ name, code, client_name, location, start_date, status, assigned_budget }])
+      .insert([{ name, code, client_name, location, start_date, status, assigned_budget: budgetValue }])
       .select()
       .single();
       

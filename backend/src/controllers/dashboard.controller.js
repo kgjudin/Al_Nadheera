@@ -32,12 +32,12 @@ exports.getDashboardMetrics = async (req, res) => {
     const laboursSpent = (labours || []).reduce((sum, l) => sum + Number(l.amount || 0), 0);
 
     // 5. Fetch Material Costs
-    const { data: materials } = await supabase.from('material_costs').select('site_id, invoice_amount');
-    const materialsSpent = (materials || []).reduce((sum, m) => sum + Number(m.invoice_amount || 0), 0);
+    const { data: materials } = await supabase.from('material_costs').select('site_id, invoice_amount, vat_amount');
+    const materialsSpent = (materials || []).reduce((sum, m) => sum + Number(m.invoice_amount || 0) + Number(m.vat_amount || 0), 0);
 
     // 6. Fetch Subcontractors
-    const { data: subcontracts } = await supabase.from('subcontractors').select('site_id, invoice_amount');
-    const subcontractsSpent = (subcontracts || []).reduce((sum, sc) => sum + Number(sc.invoice_amount || 0), 0);
+    const { data: subcontracts } = await supabase.from('subcontractors').select('site_id, invoice_amount, vat_amount');
+    const subcontractsSpent = (subcontracts || []).reduce((sum, sc) => sum + Number(sc.invoice_amount || 0) + Number(sc.vat_amount || 0), 0);
 
     // 7. Fetch Additional Expenses
     const { data: additionals } = await supabase.from('additional_expenses').select('site_id, amount');

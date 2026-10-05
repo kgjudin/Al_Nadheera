@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../services/api_service.dart';
 import '../../../models/task_model.dart';
+import '../../../models/employee_model.dart';
 
 class SiteTasksTab extends StatefulWidget {
   final String siteId;
@@ -14,12 +15,28 @@ class SiteTasksTab extends StatefulWidget {
 class _SiteTasksTabState extends State<SiteTasksTab> {
   final ApiService _apiService = ApiService();
   late Future<List<TaskModel>> _tasksFuture;
+  List<Employee> _employees = [];
   String _selectedFilter = 'All';
+  final TextEditingController _searchCtrl = TextEditingController();
+
+  static const List<String> taskStatusOptions = [
+    'Pending',
+    'Ongoing',
+    'Completed',
+  ];
 
   @override
   void initState() {
     super.initState();
     _loadTasks();
+    _loadEmployees();
+    _searchCtrl.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   void _loadTasks() {
@@ -29,65 +46,248 @@ class _SiteTasksTabState extends State<SiteTasksTab> {
     });
   }
 
-  void _showAddTaskDialog() {
-    final titleCtrl = TextEditingController();
-    final descCtrl = TextEditingController();
-    DateTime dueDate = DateTime.now().add(const Duration(days: 3));
+  Future<void> _loadEmployees() async {
+    try {
+      final list = await _apiService.getEmployees();
+      if (mounted) {
+        setState(() {
+          _employees = list.map((json) => Employee.fromJson(json)).toList();
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _updateTaskStatus(TaskModel task, String newStatus) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await _apiService.updateTask(task.id, {
+        'status': newStatus,
+      });
+      _loadTasks();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Task status changed to $newStatus'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(content: Text('Failed to update status: $e')),
+      );
+    }
+  }
+
+  void _showAddEditTaskDialog([TaskModel? existingTask]) {
+    final titleCtrl = TextEditingController(text: existingTask?.title ?? '');
+    final descCtrl = TextEditingController(text: existingTask?.description ?? '');
+    DateTime? dueDate = existingTask?.dueDate ?? DateTime.now().add(const Duration(days: 3));
+    DateTime? startDate = existingTask?.startDate ?? DateTime.now();
+    String status = _normalizeStatus(existingTask?.status ?? 'Pending');
+    String? assignedEmpId = existingTask?.assignedEmployeeId;
     final formKey = GlobalKey<FormState>();
+    bool isSaving = false;
 
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Add New Task'),
-          content: Form(
-            key: formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextFormField(
-                    controller: titleCtrl,
-                    decoration: const InputDecoration(labelText: 'Task Title *', border: OutlineInputBorder()),
-                    validator: (v) => v == null || v.isEmpty ? 'Title is required' : null,
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Text(existingTask == null ? 'Add New Task' : 'Edit Task', style: const TextStyle(fontWeight: FontWeight.bold)),
+              content: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TextFormField(
+                        controller: titleCtrl,
+                        decoration: const InputDecoration(labelText: 'Task Title *', border: OutlineInputBorder()),
+                        validator: (v) => v == null || v.trim().isEmpty ? 'Title is required' : null,
+                      ),
+                      const SizedBox(height: 14),
+                      TextFormField(
+                        controller: descCtrl,
+                        decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
+                        maxLines: 2,
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Status Selector (Pending, Ongoing, Completed)
+                      DropdownButtonFormField<String>(
+                        initialValue: status,
+                        decoration: const InputDecoration(labelText: 'Status *', border: OutlineInputBorder()),
+                        items: taskStatusOptions.map((s) {
+                          return DropdownMenuItem<String>(
+                            value: s,
+                            child: Row(
+                              children: [
+                                Icon(Icons.circle, size: 10, color: _getStatusColor(s)),
+                                const SizedBox(width: 8),
+                                Text(s, style: const TextStyle(fontWeight: FontWeight.w600)),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) setDialogState(() => status = val);
+                        },
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Assigned Employee Selector
+                      DropdownButtonFormField<String?>(
+                        initialValue: assignedEmpId,
+                        decoration: const InputDecoration(labelText: 'Assign Employee (Optional)', border: OutlineInputBorder()),
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('Unassigned / General Task'),
+                          ),
+                          ..._employees.map((e) => DropdownMenuItem<String?>(
+                                value: e.id,
+                                child: Text(e.name),
+                              )),
+                        ],
+                        onChanged: (val) => setDialogState(() => assignedEmpId = val),
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Due Date Picker
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(dueDate == null ? 'Select Due Date' : 'Due Date: ${DateFormat('yyyy-MM-dd').format(dueDate!)}'),
+                        trailing: const Icon(Icons.calendar_today_rounded),
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: dueDate ?? DateTime.now(),
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2100),
+                          );
+                          if (picked != null) {
+                            setDialogState(() => dueDate = picked);
+                          }
+                        },
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 14),
-                  TextFormField(
-                    controller: descCtrl,
-                    decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
-                    maxLines: 2,
-                  ),
-                ],
+                ),
               ),
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () async {
-                if (formKey.currentState!.validate()) {
-                  final data = {
-                    'title': titleCtrl.text,
-                    'description': descCtrl.text,
-                    'due_date': dueDate.toIso8601String(),
-                    'status': 'Pending',
-                  };
-                  final messenger = ScaffoldMessenger.of(context);
-                  Navigator.pop(dialogContext);
-                  try {
-                    await _apiService.createTask(widget.siteId, data);
-                    _loadTasks();
-                  } catch (e) {
-                    messenger.showSnackBar(SnackBar(content: Text('Error: $e')));
-                  }
-                }
-              },
-              child: const Text('Add Task'),
-            ),
-          ],
+              actions: [
+                TextButton(
+                  onPressed: isSaving ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: isSaving
+                      ? null
+                      : () async {
+                          if (!formKey.currentState!.validate()) return;
+                          setDialogState(() => isSaving = true);
+
+                          final data = {
+                            'title': titleCtrl.text.trim(),
+                            'description': descCtrl.text.trim(),
+                            'start_date': startDate.toIso8601String().split('T').first,
+                            'due_date': dueDate?.toIso8601String().split('T').first,
+                            'status': status,
+                            'assigned_employee_id': assignedEmpId,
+                          };
+
+                          final messenger = ScaffoldMessenger.of(context);
+                          try {
+                            if (existingTask == null) {
+                              await _apiService.createTask(widget.siteId, data);
+                              messenger.showSnackBar(const SnackBar(content: Text('Task added successfully!')));
+                            } else {
+                              await _apiService.updateTask(existingTask.id, data);
+                              messenger.showSnackBar(const SnackBar(content: Text('Task updated successfully!')));
+                            }
+                            if (dialogContext.mounted) {
+                              Navigator.pop(dialogContext);
+                            }
+                            _loadTasks();
+                          } catch (e) {
+                            setDialogState(() => isSaving = false);
+                            messenger.showSnackBar(SnackBar(content: Text('Error: $e')));
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0A2540),
+                    foregroundColor: Colors.white,
+                  ),
+                  child: isSaving
+                      ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : Text(existingTask == null ? 'Add Task' : 'Save Changes'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
+  }
+
+  void _confirmDeleteTask(TaskModel task) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Task'),
+        content: Text('Are you sure you want to delete task "${task.title}"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.pop(dialogContext);
+              try {
+                await _apiService.deleteTask(task.id);
+                _loadTasks();
+                messenger.showSnackBar(const SnackBar(content: Text('Task deleted successfully')));
+              } catch (e) {
+                messenger.showSnackBar(SnackBar(content: Text('Error: $e')));
+              }
+            },
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String _normalizeStatus(String status) {
+    if (status.toLowerCase().contains('progress') || status.toLowerCase() == 'ongoing') {
+      return 'Ongoing';
+    }
+    if (status.toLowerCase() == 'completed' || status.toLowerCase() == 'done') {
+      return 'Completed';
+    }
+    return 'Pending';
+  }
+
+  static Color _getStatusColor(String status) {
+    final norm = _normalizeStatus(status);
+    if (norm == 'Ongoing') {
+      return const Color(0xFF0B5ED7);
+    } else if (norm == 'Completed') {
+      return const Color(0xFF137333);
+    }
+    return const Color(0xFFC2410C); // Pending
+  }
+
+  static Color _getStatusBg(String status) {
+    final norm = _normalizeStatus(status);
+    if (norm == 'Ongoing') {
+      return const Color(0xFFE8F1FF);
+    } else if (norm == 'Completed') {
+      return const Color(0xFFE6F4EA);
+    }
+    return const Color(0xFFFFF7ED); // Pending
   }
 
   @override
@@ -103,114 +303,124 @@ class _SiteTasksTabState extends State<SiteTasksTab> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 12),
+                  Text('Error loading tasks: ${snapshot.error}'),
+                  const SizedBox(height: 12),
+                  ElevatedButton(onPressed: _loadTasks, child: const Text('Retry')),
+                ],
+              ),
+            );
           }
 
-          final list = snapshot.data ?? [];
-          final pendingCount = list.where((t) => t.status == 'Pending').length;
-          final progressCount = list.where((t) => t.status == 'In Progress').length;
+          final allTasks = snapshot.data ?? [];
+          final query = _searchCtrl.text.trim().toLowerCase();
 
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              // SEARCH BAR
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
-                ),
-                child: const TextField(
-                  decoration: InputDecoration(
-                    icon: Icon(Icons.search, color: Colors.grey),
-                    hintText: 'Search tasks, assignees...',
-                    border: InputBorder.none,
+          // Filtering
+          final filteredTasks = allTasks.where((task) {
+            final norm = _normalizeStatus(task.status);
+            if (_selectedFilter != 'All' && norm != _selectedFilter) {
+              return false;
+            }
+            if (query.isNotEmpty) {
+              final tMatch = task.title.toLowerCase().contains(query);
+              final dMatch = (task.description ?? '').toLowerCase().contains(query);
+              final aMatch = (task.assignedEmployeeName ?? '').toLowerCase().contains(query);
+              if (!tMatch && !dMatch && !aMatch) return false;
+            }
+            return true;
+          }).toList();
+
+          final pendingCount = allTasks.where((t) => _normalizeStatus(t.status) == 'Pending').length;
+          final ongoingCount = allTasks.where((t) => _normalizeStatus(t.status) == 'Ongoing').length;
+          final completedCount = allTasks.where((t) => _normalizeStatus(t.status) == 'Completed').length;
+
+          return RefreshIndicator(
+            onRefresh: () async {
+              _loadTasks();
+              await _tasksFuture;
+            },
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                // SEARCH BAR
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: TextField(
+                    controller: _searchCtrl,
+                    decoration: InputDecoration(
+                      icon: const Icon(Icons.search, color: Colors.grey),
+                      hintText: 'Search tasks, assignees...',
+                      border: InputBorder.none,
+                      suffixIcon: query.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () => _searchCtrl.clear(),
+                            )
+                          : null,
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 14),
+                const SizedBox(height: 14),
 
-              // FILTER PILLS
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _buildFilterPill('All (${list.length > 0 ? list.length : 3})', _selectedFilter == 'All', () => setState(() => _selectedFilter = 'All')),
-                    const SizedBox(width: 8),
-                    _buildFilterPill('Pending (${pendingCount > 0 ? pendingCount : 2})', _selectedFilter == 'Pending', () => setState(() => _selectedFilter = 'Pending')),
-                    const SizedBox(width: 8),
-                    _buildFilterPill('In Progress (${progressCount > 0 ? progressCount : 1})', _selectedFilter == 'In Progress', () => setState(() => _selectedFilter = 'In Progress')),
-                    const SizedBox(width: 8),
-                    _buildFilterPill('Completed', _selectedFilter == 'Completed', () => setState(() => _selectedFilter = 'Completed')),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              if (list.isEmpty) ...[
-                _buildTaskCard(
-                  category: 'SITE QA',
-                  priority: 'Medium Priority',
-                  priorityColor: Colors.orange,
-                  status: 'Pending',
-                  statusBg: const Color(0xFFFFF7ED),
-                  statusColor: const Color(0xFFC2410C),
-                  title: 'test',
-                  description: 'testingg',
-                  assignee: 'Abhinav',
-                  assigneeAvatar: 'A',
-                  dueDate: 'Sep 28, 2026',
-                ),
-                _buildTaskCard(
-                  category: 'CIVIL WORKS',
-                  priority: 'High Priority',
-                  priorityColor: Colors.red,
-                  status: 'In Progress',
-                  statusBg: const Color(0xFFE8F1FF),
-                  statusColor: const Color(0xFF0B5ED7),
-                  title: 'Foundation Rebar Inspection',
-                  description: 'Inspect footing rebar spacing and concrete cover before batch mix arrival.',
-                  checklistProgress: '3/5',
-                  assignee: 'Tariq M. (Site Eng.)',
-                  assigneeAvatar: 'TM',
-                  dueDate: 'Sep 28, 2026',
-                ),
-                _buildTaskCard(
-                  category: 'CONCRETE',
-                  priority: 'Normal',
-                  priorityColor: Colors.blueGrey,
-                  status: 'Pending',
-                  statusBg: const Color(0xFFFFF7ED),
-                  statusColor: const Color(0xFFC2410C),
-                  title: 'Structural Column Pouring',
-                  description: 'Coordinate pump truck setup and pump tests for Grid C1 to C5 columns.',
-                  assignee: 'Civil Team #2',
-                  assigneeAvatar: 'CT',
-                  dueDate: 'Oct 02, 2026',
-                ),
-              ] else
-                ...list.map(
-                  (task) => _buildTaskCard(
-                    category: 'SITE TASK',
-                    priority: 'Normal',
-                    priorityColor: Colors.blueGrey,
-                    status: task.status,
-                    statusBg: task.status == 'Pending' ? const Color(0xFFFFF7ED) : const Color(0xFFE8F1FF),
-                    statusColor: task.status == 'Pending' ? const Color(0xFFC2410C) : const Color(0xFF0B5ED7),
-                    title: task.title,
-                    description: task.description ?? '',
-                    assignee: task.assignedEmployeeName ?? 'Assigned Staff',
-                    assigneeAvatar: task.assignedEmployeeName != null && task.assignedEmployeeName!.isNotEmpty ? task.assignedEmployeeName![0].toUpperCase() : 'S',
-                    dueDate: task.dueDate != null ? dateFormat.format(task.dueDate!) : 'Ongoing',
+                // FILTER PILLS (All, Pending, Ongoing, Completed)
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildFilterPill('All (${allTasks.length})', _selectedFilter == 'All', () => setState(() => _selectedFilter = 'All')),
+                      const SizedBox(width: 8),
+                      _buildFilterPill('Pending ($pendingCount)', _selectedFilter == 'Pending', () => setState(() => _selectedFilter = 'Pending')),
+                      const SizedBox(width: 8),
+                      _buildFilterPill('Ongoing ($ongoingCount)', _selectedFilter == 'Ongoing', () => setState(() => _selectedFilter = 'Ongoing')),
+                      const SizedBox(width: 8),
+                      _buildFilterPill('Completed ($completedCount)', _selectedFilter == 'Completed', () => setState(() => _selectedFilter = 'Completed')),
+                    ],
                   ),
                 ),
-            ],
+                const SizedBox(height: 16),
+
+                if (filteredTasks.isEmpty)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 40),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.assignment_outlined, size: 54, color: Colors.grey[400]),
+                          const SizedBox(height: 12),
+                          Text(
+                            allTasks.isEmpty ? 'No tasks added yet for this site' : 'No tasks match "$_selectedFilter"',
+                            style: TextStyle(fontSize: 16, color: Colors.grey[600], fontWeight: FontWeight.bold),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Tap "+ Add Task" button below to create one.',
+                            style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  ...filteredTasks.map((task) => _buildTaskCard(task, dateFormat)),
+                const SizedBox(height: 80),
+              ],
+            ),
           );
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showAddTaskDialog,
+        onPressed: () => _showAddEditTaskDialog(),
         backgroundColor: const Color(0xFF0A2540),
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text('Add Task', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -237,20 +447,15 @@ class _SiteTasksTabState extends State<SiteTasksTab> {
     );
   }
 
-  Widget _buildTaskCard({
-    required String category,
-    required String priority,
-    required Color priorityColor,
-    required String status,
-    required Color statusBg,
-    required Color statusColor,
-    required String title,
-    required String description,
-    String? checklistProgress,
-    required String assignee,
-    required String assigneeAvatar,
-    required String dueDate,
-  }) {
+  Widget _buildTaskCard(TaskModel task, DateFormat dateFormat) {
+    final currentNormStatus = _normalizeStatus(task.status);
+    final statusColor = _getStatusColor(currentNormStatus);
+    final statusBg = _getStatusBg(currentNormStatus);
+
+    final assigneeName = task.assignedEmployeeName ?? 'Unassigned';
+    final assigneeAvatar = assigneeName.isNotEmpty ? assigneeName[0].toUpperCase() : 'U';
+    final dueDateStr = task.dueDate != null ? dateFormat.format(task.dueDate!) : 'Ongoing';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(16),
@@ -264,77 +469,157 @@ class _SiteTasksTabState extends State<SiteTasksTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header Row
+          // Header Row: Category / Priority & Interactive Status Dropdown Menu
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Row(
                 children: [
-                  Text(category, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
+                  const Text('SITE TASK', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: priorityColor.withValues(alpha: 0.1),
+                      color: Colors.blueGrey.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(6),
                     ),
-                    child: Text(priority, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: priorityColor)),
+                    child: const Text('Normal', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blueGrey)),
                   ),
                 ],
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: statusBg, borderRadius: BorderRadius.circular(12)),
-                child: Text('• $status ˅', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: statusColor)),
+
+              // Interactive Status Badge & Picker
+              PopupMenuButton<String>(
+                tooltip: 'Change Task Status',
+                onSelected: (newStatus) {
+                  if (newStatus != currentNormStatus) {
+                    _updateTaskStatus(task, newStatus);
+                  }
+                },
+                itemBuilder: (context) => taskStatusOptions.map((opt) {
+                  final isSelected = opt == currentNormStatus;
+                  return PopupMenuItem<String>(
+                    value: opt,
+                    child: Row(
+                      children: [
+                        Icon(
+                          isSelected ? Icons.check_circle : Icons.circle_outlined,
+                          size: 16,
+                          color: _getStatusColor(opt),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          opt,
+                          style: TextStyle(
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                            color: _getStatusColor(opt),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: statusBg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.circle, size: 8, color: statusColor),
+                      const SizedBox(width: 5),
+                      Text(
+                        currentNormStatus,
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: statusColor),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.arrow_drop_down, size: 16, color: statusColor),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0A2540))),
-          if (description.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(description, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-          ],
 
-          if (checklistProgress != null) ...[
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Icon(Icons.check_box_outlined, size: 14, color: Color(0xFF0B5ED7)),
-                const SizedBox(width: 6),
-                Text('Checklist Progress', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
-                const Spacer(),
-                Text(checklistProgress, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF0B5ED7))),
-              ],
-            ),
+          // Title & Description
+          Text(task.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0A2540))),
+          if (task.description != null && task.description!.isNotEmpty) ...[
             const SizedBox(height: 4),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: const LinearProgressIndicator(value: 0.6, minHeight: 6, backgroundColor: Color(0xFFF1F5F9), color: Color(0xFF0B5ED7)),
-            ),
+            Text(task.description!, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
           ],
 
           const SizedBox(height: 14),
           const Divider(height: 1, color: Color(0xFFF1F5F9)),
           const SizedBox(height: 10),
 
-          // Footer Assignee & Due Date
+          // Footer: Assignee, Due Date, and Actions Menu (Edit/Delete)
           Row(
             children: [
               CircleAvatar(
-                radius: 11,
-                backgroundColor: const Color(0xFFE6F4EA),
-                child: Text(assigneeAvatar, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF137333))),
+                radius: 12,
+                backgroundColor: task.assignedEmployeeName != null ? const Color(0xFFE6F4EA) : Colors.grey.shade200,
+                child: Text(
+                  assigneeAvatar,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: task.assignedEmployeeName != null ? const Color(0xFF137333) : Colors.grey.shade700,
+                  ),
+                ),
               ),
               const SizedBox(width: 6),
               Expanded(
-                child: Text(assignee, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0A2540)), overflow: TextOverflow.ellipsis),
+                child: Text(
+                  assigneeName,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Color(0xFF0A2540)),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
               Row(
                 children: [
-                  const Icon(Icons.calendar_today, size: 13, color: Colors.redAccent),
+                  const Icon(Icons.calendar_today, size: 12, color: Colors.redAccent),
                   const SizedBox(width: 4),
-                  Text('Due: $dueDate', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.redAccent)),
+                  Text(
+                    'Due: $dueDateStr',
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.redAccent),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 6),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, size: 18, color: Colors.grey),
+                onSelected: (val) {
+                  if (val == 'edit') {
+                    _showAddEditTaskDialog(task);
+                  } else if (val == 'delete') {
+                    _confirmDeleteTask(task);
+                  }
+                },
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit, size: 16),
+                        SizedBox(width: 8),
+                        Text('Edit Task'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete, color: Colors.red, size: 16),
+                        SizedBox(width: 8),
+                        Text('Delete Task', style: TextStyle(color: Colors.red)),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ],
