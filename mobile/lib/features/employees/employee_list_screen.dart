@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
+import '../../services/permission_service.dart';
+import '../../core/constants/app_modules.dart';
 import '../../models/employee_model.dart';
 import 'add_edit_employee_screen.dart';
+import '../roles/employee_custom_permissions_screen.dart';
 import '../../core/widgets/profile_avatar_button.dart';
+
 
 class EmployeeListScreen extends StatefulWidget {
   const EmployeeListScreen({super.key});
@@ -90,14 +94,17 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
           },
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _navigateToAddEmployee(),
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: PermissionService.instance.canCreate(AppModules.employees)
+          ? FloatingActionButton(
+              onPressed: () => _navigateToAddEmployee(),
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 
   Widget _buildEmployeeCard(Employee emp) {
+    final ps = PermissionService.instance;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
@@ -155,21 +162,40 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> {
                       builder: (context) => AddEditEmployeeScreen(employee: emp),
                     ),
                   ).then((_) => _loadEmployees());
+                } else if (val == 'permissions') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EmployeeCustomPermissionsScreen(employee: emp),
+                    ),
+                  ).then((_) => _loadEmployees());
                 } else if (val == 'change_password') {
                   _showChangePasswordDialog(emp);
                 }
               },
               itemBuilder: (context) => [
-                const PopupMenuItem(
-                  value: 'edit',
-                  child: Row(
-                    children: [
-                      Icon(Icons.edit_outlined, size: 18),
-                      SizedBox(width: 8),
-                      Text('Edit Profile'),
-                    ],
+                if (ps.canEdit(AppModules.employees))
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: Row(
+                      children: [
+                        Icon(Icons.edit_outlined, size: 18),
+                        SizedBox(width: 8),
+                        Text('Edit Profile'),
+                      ],
+                    ),
                   ),
-                ),
+                if (ps.isAdmin || ps.canView(AppModules.roleManagement))
+                  const PopupMenuItem(
+                    value: 'permissions',
+                    child: Row(
+                      children: [
+                        Icon(Icons.security_rounded, size: 18, color: Color(0xFF8E24AA)),
+                        SizedBox(width: 8),
+                        Text('Role & Permissions'),
+                      ],
+                    ),
+                  ),
                 const PopupMenuItem(
                   value: 'change_password',
                   child: Row(

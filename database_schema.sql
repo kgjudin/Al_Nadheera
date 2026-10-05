@@ -259,3 +259,32 @@ CREATE POLICY "Users own personal data upload" ON storage.objects FOR INSERT TO 
 
 -- Realtime Setup
 ALTER PUBLICATION supabase_realtime ADD TABLE public.chat_messages;
+
+-- 13. Roles Table (Access Levels: Super Admin, Admin, Manager, Employee, Custom Roles)
+CREATE TABLE IF NOT EXISTS public.roles (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT UNIQUE NOT NULL,
+    description TEXT,
+    is_system BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 14. Role Permissions Table (Module & Site Sub-Option Granular Access)
+CREATE TABLE IF NOT EXISTS public.role_permissions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    role_id UUID REFERENCES public.roles(id) ON DELETE CASCADE,
+    module_key TEXT NOT NULL,
+    can_view BOOLEAN DEFAULT true,
+    can_create BOOLEAN DEFAULT false,
+    can_edit BOOLEAN DEFAULT false,
+    can_delete BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT uq_role_module UNIQUE (role_id, module_key)
+);
+
+-- Extend Employees Table with Role Foreign Key & Custom Overrides
+ALTER TABLE public.employees 
+ADD COLUMN IF NOT EXISTS role_id UUID REFERENCES public.roles(id) ON DELETE SET NULL,
+ADD COLUMN IF NOT EXISTS custom_permissions JSONB DEFAULT NULL;

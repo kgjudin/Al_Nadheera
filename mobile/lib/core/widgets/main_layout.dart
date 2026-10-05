@@ -8,7 +8,10 @@ import '../../features/personal/folders_screen.dart';
 import '../../features/products/products_screen.dart';
 import '../../features/chat/chat_layout_screen.dart';
 import '../../features/budget/budget_screen.dart';
+import '../../features/roles/role_management_screen.dart';
 import '../../services/api_service.dart';
+import '../../services/permission_service.dart';
+import '../../core/constants/app_modules.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/chat/services/presence_service.dart';
 import '../../features/ai_assistant/widgets/floating_ai_assistant_button.dart';
@@ -23,23 +26,15 @@ class MainLayout extends StatefulWidget {
 class _MainLayoutState extends State<MainLayout> {
   int _currentIndex = 0;
   final ApiService _apiService = ApiService();
+  final _permissionService = PermissionService.instance;
   final currencyFormat = NumberFormat.currency(symbol: 'QAR ', decimalDigits: 0);
   int _unreadChatCount = 0;
   RealtimeChannel? _unreadSubscription;
 
-  final List<Widget> _screens = [
-    const DashboardScreen(),
-    const SiteListScreen(),
-    const EmployeeListScreen(),
-    const BudgetScreen(),
-    const ChatLayoutScreen(),
-    const ProductsScreen(), // Index 5: Products
-    const FoldersScreen(),  // Index 6: Personal
-  ];
-
   @override
   void initState() {
     super.initState();
+    _permissionService.loadUserPermissions();
     _loadUnreadChatCount();
     _setupUnreadSubscription();
   }
@@ -83,7 +78,46 @@ class _MainLayoutState extends State<MainLayout> {
     super.dispose();
   }
 
+  Widget _buildScreenWithPermission(int index) {
+    switch (index) {
+      case 0:
+        return _permissionService.canView(AppModules.dashboard)
+            ? const DashboardScreen()
+            : const _AccessRestrictedView(moduleTitle: 'Dashboard');
+      case 1:
+        return _permissionService.canView(AppModules.sites)
+            ? const SiteListScreen()
+            : const _AccessRestrictedView(moduleTitle: 'Sites Directory');
+      case 2:
+        return _permissionService.canView(AppModules.employees)
+            ? const EmployeeListScreen()
+            : const _AccessRestrictedView(moduleTitle: 'Employees & Staff');
+      case 3:
+        return _permissionService.canView(AppModules.budget)
+            ? const BudgetScreen()
+            : const _AccessRestrictedView(moduleTitle: 'Company Budget');
+      case 4:
+        return _permissionService.canView(AppModules.chat)
+            ? const ChatLayoutScreen()
+            : const _AccessRestrictedView(moduleTitle: 'Team Chat');
+      case 5:
+        return _permissionService.canView(AppModules.products)
+            ? const ProductsScreen()
+            : const _AccessRestrictedView(moduleTitle: 'Products Catalog');
+      case 6:
+        return _permissionService.canView(AppModules.personal)
+            ? const FoldersScreen()
+            : const _AccessRestrictedView(moduleTitle: 'Personal Notes');
+      default:
+        return const DashboardScreen();
+    }
+  }
+
   void _showMoreBottomSheet() {
+    final canViewBudget = _permissionService.canView(AppModules.budget);
+    final canManageRoles = _permissionService.canView(AppModules.roleManagement) ||
+        _permissionService.isAdmin;
+
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -92,12 +126,10 @@ class _MainLayoutState extends State<MainLayout> {
       backgroundColor: Colors.white,
       builder: (sheetContext) {
         return FutureBuilder(
-          future: _apiService.getDashboardMetrics(),
+          future: canViewBudget ? _apiService.getDashboardMetrics() : null,
           builder: (context, snapshot) {
             final metrics = snapshot.data;
             final remaining = metrics?.remainingBudget ?? 0.0;
-            final assigned = metrics?.totalAssignedBudget ?? 0.0;
-            final spent = metrics?.totalSpent ?? 0.0;
 
             return Padding(
               padding: const EdgeInsets.all(20.0),
@@ -116,92 +148,135 @@ class _MainLayoutState extends State<MainLayout> {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    'More Options & Financial Overview',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0A2540)),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'More Options & Controls',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0A2540)),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0B5ED7).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          _permissionService.currentRole.toUpperCase(),
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0B5ED7),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 14),
 
-                  // Balance Overview Card in More
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [const Color(0xFF0A3B66), Colors.blue[900]!],
+                  // Balance Overview Card in More (Guarded with permissions)
+                  if (canViewBudget) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [const Color(0xFF0A3B66), Colors.blue[900]!],
+                        ),
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      borderRadius: BorderRadius.circular(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.account_balance_wallet_rounded, color: Colors.greenAccent, size: 18),
+                              SizedBox(width: 6),
+                              Text(
+                                'TOTAL REMAINING BALANCE',
+                                style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            currencyFormat.format(remaining),
+                            style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Row(
-                          children: [
-                            Icon(Icons.account_balance_wallet_rounded, color: Colors.greenAccent, size: 18),
-                            SizedBox(width: 6),
-                            Text(
-                              'TOTAL REMAINING BALANCE',
-                              style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1),
-                            ),
-                          ],
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Roles & Access Control (Admin / Super Admin)
+                  if (canManageRoles) ...[
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF8E24AA).withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          currencyFormat.format(remaining),
-                          style: const TextStyle(color: Colors.greenAccent, fontSize: 24, fontWeight: FontWeight.bold),
-                        ),
-                        const Divider(color: Colors.white24, height: 20),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('Assigned: ${currencyFormat.format(assigned)}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                            Text('Spent: ${currencyFormat.format(spent)}', style: const TextStyle(color: Colors.orangeAccent, fontSize: 12)),
-                          ],
-                        ),
-                      ],
+                        child: const Icon(Icons.admin_panel_settings_rounded, color: Color(0xFF8E24AA)),
+                      ),
+                      title: const Text('Roles & Access Control', style: TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: const Text('Configure Super Admin, Admin, Manager, & Custom roles'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const RoleManagementScreen()),
+                        );
+                      },
                     ),
-                  ),
-                  const SizedBox(height: 20),
+                    const Divider(height: 1),
+                  ],
 
                   // Option 1: Products
-                  ListTile(
-                    leading: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.blue[50],
-                        shape: BoxShape.circle,
+                  if (_permissionService.canView(AppModules.products)) ...[
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.inventory_2_rounded, color: Color(0xFF0B5ED7)),
                       ),
-                      child: const Icon(Icons.inventory_2_rounded, color: Color(0xFF0B5ED7)),
+                      title: const Text('Products & Materials', style: TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: const Text('Manage product inventory and prices'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        setState(() => _currentIndex = 5);
+                      },
                     ),
-                    title: const Text('Products & Materials', style: TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: const Text('Manage product inventory and prices'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      setState(() => _currentIndex = 5);
-                    },
-                  ),
-                  const Divider(height: 1),
+                    const Divider(height: 1),
+                  ],
 
                   // Option 2: Personal Folders
-                  ListTile(
-                    leading: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.purple[50],
-                        shape: BoxShape.circle,
+                  if (_permissionService.canView(AppModules.personal)) ...[
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.purple[50],
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.folder_shared_rounded, color: Colors.purple),
                       ),
-                      child: const Icon(Icons.folder_shared_rounded, color: Colors.purple),
+                      title: const Text('Personal Folders & Notes', style: TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: const Text('Private notes and workspace data'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        setState(() => _currentIndex = 6);
+                      },
                     ),
-                    title: const Text('Personal Folders & Notes', style: TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: const Text('Private notes and workspace data'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      setState(() => _currentIndex = 6);
-                    },
-                  ),
-                  const Divider(height: 1),
+                    const Divider(height: 1),
+                  ],
 
                   // Option 3: Account Sign Out
                   ListTile(
@@ -243,74 +318,122 @@ class _MainLayoutState extends State<MainLayout> {
 
   @override
   Widget build(BuildContext context) {
-    // If _currentIndex is 5 or 6 (Products or Personal opened via More), show those screens
     final displayIndex = _currentIndex > 4 ? 4 : _currentIndex;
 
+    return AnimatedBuilder(
+      animation: _permissionService,
+      builder: (context, _) {
+        return Scaffold(
+          body: Stack(
+            children: [
+              _buildScreenWithPermission(_currentIndex),
+              const FloatingAiAssistantButton(),
+            ],
+          ),
+          bottomNavigationBar: NavigationBar(
+            selectedIndex: displayIndex,
+            onDestinationSelected: (index) {
+              if (index == 5) {
+                _showMoreBottomSheet();
+              } else {
+                setState(() {
+                  _currentIndex = index;
+                });
+              }
+            },
+            destinations: [
+              const NavigationDestination(
+                icon: Icon(Icons.grid_view_outlined),
+                selectedIcon: Icon(Icons.grid_view_rounded),
+                label: 'Dashboard',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.business_outlined),
+                selectedIcon: Icon(Icons.business_rounded),
+                label: 'Sites',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.people_outline),
+                selectedIcon: Icon(Icons.people_rounded),
+                label: 'Staff',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.account_balance_wallet_outlined),
+                selectedIcon: Icon(Icons.account_balance_wallet_rounded),
+                label: 'Budget',
+              ),
+              NavigationDestination(
+                icon: _unreadChatCount > 0
+                    ? Badge.count(
+                        count: _unreadChatCount,
+                        backgroundColor: const Color(0xFF25D366),
+                        child: const Icon(Icons.chat_bubble_outline),
+                      )
+                    : const Icon(Icons.chat_bubble_outline),
+                selectedIcon: _unreadChatCount > 0
+                    ? Badge.count(
+                        count: _unreadChatCount,
+                        backgroundColor: const Color(0xFF25D366),
+                        child: const Icon(Icons.chat_bubble_rounded),
+                      )
+                    : const Icon(Icons.chat_bubble_rounded),
+                label: 'Chat',
+              ),
+              const NavigationDestination(
+                icon: Icon(Icons.more_horiz_rounded),
+                selectedIcon: Icon(Icons.more_horiz_rounded),
+                label: 'More',
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _AccessRestrictedView extends StatelessWidget {
+  final String moduleTitle;
+  const _AccessRestrictedView({required this.moduleTitle});
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
-      body: Stack(
-        children: [
-          IndexedStack(
-            index: _currentIndex,
-            children: _screens,
-          ),
-          const FloatingAiAssistantButton(),
-        ],
+      backgroundColor: const Color(0xFFF4F6FA),
+      appBar: AppBar(
+        title: Text(moduleTitle, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF0A2540),
+        elevation: 0,
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: displayIndex,
-        onDestinationSelected: (index) {
-          if (index == 5) {
-            _showMoreBottomSheet();
-          } else {
-            setState(() {
-              _currentIndex = index;
-            });
-          }
-        },
-        destinations: [
-          NavigationDestination(
-            icon: Icon(Icons.grid_view_outlined),
-            selectedIcon: Icon(Icons.grid_view_rounded),
-            label: 'Dashboard',
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.lock_person_rounded, size: 54, color: Colors.redAccent),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Access to $moduleTitle Restricted',
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0A2540)),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Your current assigned role (${PermissionService.instance.currentRole}) does not have permission to access this module.\n\nPlease contact a Super Admin or Admin to request access permissions.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Colors.grey[700], height: 1.4),
+              ),
+            ],
           ),
-          NavigationDestination(
-            icon: Icon(Icons.business_outlined),
-            selectedIcon: Icon(Icons.business_rounded),
-            label: 'Sites',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.people_outline),
-            selectedIcon: Icon(Icons.people_rounded),
-            label: 'Staff',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.account_balance_wallet_outlined),
-            selectedIcon: Icon(Icons.account_balance_wallet_rounded),
-            label: 'Budget',
-          ),
-          NavigationDestination(
-            icon: _unreadChatCount > 0
-                ? Badge.count(
-                    count: _unreadChatCount,
-                    backgroundColor: const Color(0xFF25D366),
-                    child: const Icon(Icons.chat_bubble_outline),
-                  )
-                : const Icon(Icons.chat_bubble_outline),
-            selectedIcon: _unreadChatCount > 0
-                ? Badge.count(
-                    count: _unreadChatCount,
-                    backgroundColor: const Color(0xFF25D366),
-                    child: const Icon(Icons.chat_bubble_rounded),
-                  )
-                : const Icon(Icons.chat_bubble_rounded),
-            label: 'Chat',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.more_horiz_rounded),
-            selectedIcon: Icon(Icons.more_horiz_rounded),
-            label: 'More',
-          ),
-        ],
+        ),
       ),
     );
   }

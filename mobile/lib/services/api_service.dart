@@ -229,5 +229,17 @@ class ApiService {
     final response = await http.delete(Uri.parse('$baseUrl/products/$id'));
     _processResponse(response);
   }
+
+  // -- Auth Fallback --
+  Future<Map<String, dynamic>> login(String email, String password) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/login'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({'email': email, 'password': password}),
+    );
+    final data = _processResponse(response);
+    return Map<String, dynamic>.from(data);
+  }
 }
+
 

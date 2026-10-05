@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../services/api_service.dart';
+import '../../services/permission_service.dart';
 import '../../models/employee_model.dart';
+import '../../models/role_model.dart';
 import '../../models/site_model.dart';
+import '../roles/employee_custom_permissions_screen.dart';
 import 'package:intl/intl.dart';
 
 class AddEditEmployeeScreen extends StatefulWidget {
@@ -16,13 +19,18 @@ class AddEditEmployeeScreen extends StatefulWidget {
 class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
   final _formKey = GlobalKey<FormState>();
   final ApiService _apiService = ApiService();
+  final PermissionService _permissionService = PermissionService.instance;
   
   late TextEditingController _nameController;
   late TextEditingController _empIdController;
   late TextEditingController _phoneController;
   late TextEditingController _emailController;
-  late TextEditingController _roleController;
   
+  List<AppRole> _availableRoles = [];
+  String? _selectedRoleId;
+  String _selectedRoleName = 'Employee';
+  bool _isLoadingRoles = true;
+
   DateTime? _joiningDate;
   String _status = 'Active';
   String? _assignedSiteId;
@@ -37,15 +45,42 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
     _empIdController = TextEditingController(text: widget.employee?.employeeId ?? '');
     _phoneController = TextEditingController(text: widget.employee?.phone ?? '');
     _emailController = TextEditingController(text: widget.employee?.email ?? '');
-    _roleController = TextEditingController(text: widget.employee?.role ?? '');
     
     _joiningDate = widget.employee?.joiningDate;
     _assignedSiteId = widget.employee?.assignedSiteId;
     if (widget.employee != null) {
       _status = widget.employee!.status;
+      final empRole = widget.employee!.role;
+      _selectedRoleName = (empRole != null && empRole.isNotEmpty) ? empRole : 'Employee';
     }
     
     _fetchSites();
+    _fetchRoles();
+  }
+
+  Future<void> _fetchRoles() async {
+    try {
+      final roles = await _permissionService.fetchAllRoles();
+      if (mounted) {
+        setState(() {
+          _availableRoles = roles;
+          final match = roles.firstWhere(
+            (r) => r.name.toLowerCase() == _selectedRoleName.toLowerCase(),
+            orElse: () => roles.firstWhere(
+              (r) => r.name.toLowerCase() == 'employee',
+              orElse: () => roles.isNotEmpty ? roles.first : AppRole(id: '', name: 'Employee'),
+            ),
+          );
+          _selectedRoleId = match.id.isNotEmpty ? match.id : null;
+          _selectedRoleName = match.name;
+          _isLoadingRoles = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoadingRoles = false);
+      }
+    }
   }
 
   Future<void> _fetchSites() async {
@@ -93,7 +128,6 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
     _empIdController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
-    _roleController.dispose();
     super.dispose();
   }
 
@@ -108,7 +142,8 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
         'employee_id': _empIdController.text.trim(),
         'phone': _phoneController.text.trim(),
         'email': _emailController.text.trim(),
-        'role': _roleController.text.trim(),
+        'role': _selectedRoleName,
+        'role_id': _selectedRoleId,
         'joining_date': _joiningDate?.toIso8601String(),
         'status': _status,
         'assigned_site_id': _assignedSiteId,
@@ -149,54 +184,49 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
     }
   }
 
-  Future<void> _showChangePasswordDialog() async {
+  void _showChangePasswordDialog() {
     final passwordCtrl = TextEditingController();
     final confirmCtrl = TextEditingController();
+    bool isSubmitting = false;
     bool obscure = true;
     bool obscureConfirm = true;
     String? errorMsg;
-    bool isSubmitting = false;
 
-    await showDialog(
+    showDialog(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               title: Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                      shape: BoxShape.circle,
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Icon(Icons.lock_reset_rounded, color: Theme.of(context).colorScheme.primary),
+                    child: const Icon(Icons.lock_reset_rounded, color: Colors.blue, size: 22),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      'Change Password',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                  ),
+                  const Text('Reset Password', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 ],
               ),
-              content: SingleChildScrollView(
+              content: SizedBox(
+                width: double.maxFinite,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Update password for ${widget.employee?.name ?? "staff member"}:',
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                      'Change password for ${widget.employee!.name}',
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                     ),
                     const SizedBox(height: 16),
                     if (errorMsg != null)
                       Container(
                         padding: const EdgeInsets.all(10),
-                        margin: const EdgeInsets.only(bottom: 14),
+                        margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
                           color: Colors.red.shade50,
                           borderRadius: BorderRadius.circular(10),
@@ -348,11 +378,46 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
                     keyboardType: TextInputType.emailAddress,
                   ),
                   const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _roleController,
-                    decoration: const InputDecoration(labelText: 'Role (e.g., Engineer, Labour)', border: OutlineInputBorder()),
+
+                  // Role Selector Dropdown with System & Custom Roles
+                  DropdownButtonFormField<String>(
+                    value: _selectedRoleId,
+                    decoration: InputDecoration(
+                      labelText: 'Role & Access Level *',
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.shield_outlined),
+                      suffixIcon: _isLoadingRoles
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            )
+                          : null,
+                    ),
+                    items: _availableRoles.map((r) {
+                      return DropdownMenuItem<String>(
+                        value: r.id,
+                        child: Text(
+                          '${r.name}${r.isSystem ? "" : " (Custom)"}',
+                          style: const TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        final matched = _availableRoles.firstWhere((r) => r.id == val);
+                        setState(() {
+                          _selectedRoleId = val;
+                          _selectedRoleName = matched.name;
+                        });
+                      }
+                    },
                   ),
                   const SizedBox(height: 16),
+
                   ListTile(
                     title: Text(_joiningDate == null ? 'Select Joining Date' : 'Joining Date: ${DateFormat('yyyy-MM-dd').format(_joiningDate!)}'),
                     trailing: const Icon(Icons.calendar_today),
@@ -362,6 +427,8 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
                     ),
                     onTap: () => _selectDate(context),
                   ),
+                  const SizedBox(height: 16),
+
                   Builder(
                     builder: (context) {
                       final siteItems = _buildSiteDropdownItems();
@@ -408,7 +475,8 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
                       );
                     },
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 28),
+
                   ElevatedButton(
                     onPressed: _saveEmployee,
                     style: ElevatedButton.styleFrom(
@@ -416,7 +484,25 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
                     ),
                     child: const Text('SAVE EMPLOYEE', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   ),
+
                   if (widget.employee != null) ...[
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => EmployeeCustomPermissionsScreen(employee: widget.employee!),
+                          ),
+                        ).then((_) => _fetchRoles());
+                      },
+                      icon: const Icon(Icons.security_rounded, color: Color(0xFF8E24AA)),
+                      label: const Text('CUSTOMIZE MODULE & SITE PERMISSIONS', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF8E24AA))),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: const BorderSide(color: Color(0xFF8E24AA)),
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
                       onPressed: _showChangePasswordDialog,

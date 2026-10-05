@@ -34,11 +34,22 @@ exports.getEmployeeById = async (req, res) => {
 
 exports.createEmployee = async (req, res) => {
   try {
-    const { employee_id, name, phone, email, role, joining_date, assigned_site_id, status, profile_image_url } = req.body;
+    const { employee_id, name, phone, email, role, role_id, custom_permissions, joining_date, assigned_site_id, status, profile_image_url } = req.body;
     if (!name) {
       return res.status(422).json({ success: false, message: 'Name is required' });
     }
     
+    // Resolve role and role_id if one is provided
+    let finalRole = role || 'Employee';
+    let finalRoleId = role_id;
+    if (finalRoleId && !role) {
+      const { data: rData } = await supabase.from('roles').select('name').eq('id', finalRoleId).maybeSingle();
+      if (rData) finalRole = rData.name;
+    } else if (finalRole && !finalRoleId) {
+      const { data: rData } = await supabase.from('roles').select('id').ilike('name', finalRole).maybeSingle();
+      if (rData) finalRoleId = rData.id;
+    }
+
     let authUserId = null;
     
     // If an email is provided, create a Supabase Auth User so they can log in
@@ -47,18 +58,33 @@ exports.createEmployee = async (req, res) => {
         email: email,
         password: 'Password123!', // Default password for new employees
         email_confirm: true,      // Auto-confirm so they can log in immediately
+        user_metadata: {
+          name: name,
+          phone: phone,
+          role: finalRole,
+        }
       });
       
       if (authError) {
         console.error("Auth creation error:", authError.message);
-        // We'll proceed to create the employee record even if auth fails (e.g. email already exists)
-        // Or we can throw, but let's just log it to prevent complete failure.
       } else if (authData && authData.user) {
         authUserId = authData.user.id;
       }
     }
     
-    const payload = { employee_id, name, phone, email, role, joining_date, assigned_site_id, status, profile_image_url };
+    const payload = { 
+      employee_id, 
+      name, 
+      phone, 
+      email, 
+      role: finalRole, 
+      role_id: finalRoleId,
+      custom_permissions: custom_permissions || null,
+      joining_date, 
+      assigned_site_id, 
+      status, 
+      profile_image_url 
+    };
     if (authUserId) {
       payload.id = authUserId; // Link the employee record to the auth user
     }
@@ -79,8 +105,16 @@ exports.createEmployee = async (req, res) => {
 exports.updateEmployee = async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
+    const updates = { ...req.body };
     
+    if (updates.role_id && !updates.role) {
+      const { data: rData } = await supabase.from('roles').select('name').eq('id', updates.role_id).maybeSingle();
+      if (rData) updates.role = rData.name;
+    } else if (updates.role && !updates.role_id) {
+      const { data: rData } = await supabase.from('roles').select('id').ilike('name', updates.role).maybeSingle();
+      if (rData) updates.role_id = rData.id;
+    }
+
     const { data, error } = await supabase
       .from('employees')
       .update(updates)

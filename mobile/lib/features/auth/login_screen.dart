@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/widgets/main_layout.dart';
+import '../../services/api_service.dart';
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -46,10 +48,22 @@ class _LoginScreenState extends State<LoginScreen> {
         throw Exception('Please enter email and password');
       }
 
-      await Supabase.instance.client.auth.signInWithPassword(
-        email: email,
-        password: password,
-      );
+      try {
+        await Supabase.instance.client.auth.signInWithPassword(
+          email: email,
+          password: password,
+        );
+      } catch (authErr) {
+        // Fallback to backend authentication
+        final authResult = await ApiService().login(email, password);
+        final session = authResult['session'];
+        if (session != null && session['access_token'] != null) {
+          final refreshToken = session['refresh_token']?.toString() ?? session['access_token']?.toString() ?? '';
+          await Supabase.instance.client.auth.setSession(refreshToken);
+        } else {
+          rethrow;
+        }
+      }
 
       if (mounted) {
         Navigator.of(context).pushReplacement(
@@ -57,6 +71,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } on AuthException catch (e) {
+
       setState(() {
         _errorMessage = e.message;
       });

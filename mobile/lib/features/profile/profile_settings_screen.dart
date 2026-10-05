@@ -3,6 +3,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../auth/login_screen.dart';
 import '../chat/services/presence_service.dart';
+import '../roles/role_management_screen.dart';
+import '../../services/permission_service.dart';
+import '../../core/constants/app_modules.dart';
+
 
 class ProfileSettingsScreen extends StatefulWidget {
   const ProfileSettingsScreen({super.key});
@@ -623,6 +627,29 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
               elevation: 2,
               child: Column(
                 children: [
+                  if (PermissionService.instance.isAdmin ||
+                      PermissionService.instance.canView(AppModules.roleManagement)) ...[
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF8E24AA).withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.admin_panel_settings_rounded, color: Color(0xFF8E24AA)),
+                      ),
+                      title: const Text('Roles & Permissions Control', style: TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: const Text('Manage Super Admin, Admin, Manager, and custom employee roles'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const RoleManagementScreen()),
+                        );
+                      },
+                    ),
+                    const Divider(height: 1),
+                  ],
                   ListTile(
                     leading: Container(
                       padding: const EdgeInsets.all(8),
