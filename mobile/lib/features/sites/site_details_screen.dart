@@ -53,6 +53,7 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
   List<_SiteTabDefinition> _accessibleTabs = [];
   final Map<String, int> _tabRefreshCounts = {};
   int _lastTabIndex = 0;
+  bool _isHeaderExpanded = false; // Collapsed by default to save screen space
 
   @override
   void initState() {
@@ -278,227 +279,233 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
 
           return Column(
             children: [
-              // Top Executive Site Header Banner
+              // Top Site Header Banner (Compact & Collapsible)
               Container(
                 width: double.infinity,
                 color: Colors.white,
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  padding: EdgeInsets.symmetric(horizontal: 14, vertical: _isHeaderExpanded ? 12 : 8),
                   decoration: BoxDecoration(
                     color: const Color(0xFF0A2540),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(14),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.1),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
                       ),
                     ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Site Title & Status Badge
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    if (site?.code != null && site!.code!.isNotEmpty) ...[
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white24,
-                                          borderRadius: BorderRadius.circular(6),
-                                        ),
-                                        child: Text(
-                                          site.code!,
-                                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 8),
-                                    ],
-                                    const Text(
-                                      'PROJECT DETAILS',
-                                      style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  site?.name ?? 'Loading Site...',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                          Row(
-                            children: [
+                      // Header Strip (Always visible, tap to toggle expand/collapse)
+                      InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: () => setState(() => _isHeaderExpanded = !_isHeaderExpanded),
+                        child: Row(
+                          children: [
+                            if (site?.code != null && site!.code!.isNotEmpty) ...[
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: isLiveActive ? const Color(0xFFE6F4EA) : const Color(0xFFF1F5F9),
-                                  borderRadius: BorderRadius.circular(12),
+                                  color: Colors.white24,
+                                  borderRadius: BorderRadius.circular(5),
                                 ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 6,
-                                      height: 6,
-                                      decoration: BoxDecoration(
-                                        color: isLiveActive ? const Color(0xFF00C853) : Colors.grey,
-                                        shape: BoxShape.circle,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      (site?.status ?? 'Active').toUpperCase(),
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                        color: isLiveActive ? const Color(0xFF137333) : Colors.grey[700],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (canEditSite) ...[
-                                const SizedBox(width: 4),
-                                IconButton(
-                                  icon: const Icon(Icons.edit_outlined, color: Colors.white70, size: 20),
-                                  tooltip: 'Edit Site Info',
-                                  onPressed: () {
-                                    if (site != null) {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (context) => AddEditSiteScreen(site: site),
-                                        ),
-                                      ).then((_) => _loadSite());
-                                    }
-                                  },
-                                ),
-                              ],
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-
-                      // Lead / Client & Location Row
-                      if (site != null) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 10,
-                                backgroundColor: Colors.blue[100],
                                 child: Text(
-                                  site.clientName != null && site.clientName!.isNotEmpty ? site.clientName![0].toUpperCase() : 'S',
-                                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF0A2540)),
+                                  site.code!,
+                                  style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.white),
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  'Client: ${site.clientName ?? 'N/A'}  •  Location: ${site.location ?? 'N/A'}',
-                                  style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
-                                  overflow: TextOverflow.ellipsis,
+                            ],
+                            Expanded(
+                              child: Text(
+                                site?.name ?? 'Loading Site...',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            // Status Badge
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                              decoration: BoxDecoration(
+                                color: isLiveActive ? const Color(0xFFE6F4EA) : const Color(0xFFF1F5F9),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 5,
+                                    height: 5,
+                                    decoration: BoxDecoration(
+                                      color: isLiveActive ? const Color(0xFF00C853) : Colors.grey,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 3.5),
+                                  Text(
+                                    (site?.status ?? 'Active').toUpperCase(),
+                                    style: TextStyle(
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: isLiveActive ? const Color(0xFF137333) : Colors.grey[700],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (canEditSite) ...[
+                              const SizedBox(width: 2),
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined, color: Colors.white70, size: 18),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                                tooltip: 'Edit Site Info',
+                                onPressed: () {
+                                  if (site != null) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => AddEditSiteScreen(site: site),
+                                      ),
+                                    ).then((_) => _loadSite());
+                                  }
+                                },
                               ),
                             ],
-                          ),
+                            const SizedBox(width: 2),
+                            // Chevron Button to expand or collapse
+                            Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.12),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                _isHeaderExpanded ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
+                                color: Colors.white,
+                                size: 20,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 14),
-                      ],
+                      ),
 
-                      // Financial Metric Bar (Guarded with permissions)
-                      if (canViewFinancials) ...[
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Assigned Budget',
-                                  style: TextStyle(color: Colors.white70, fontSize: 11),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  currencyFormat.format(site?.assignedBudget ?? 0),
-                                  style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                                ),
-                              ],
+                      // Collapsible Content (Hidden by default, drops down on arrow click)
+                      if (_isHeaderExpanded) ...[
+                        const SizedBox(height: 10),
+                        // Lead / Client & Location Row
+                        if (site != null) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
+                            child: Row(
                               children: [
-                                const Text('Total Spend', style: TextStyle(color: Colors.white70, fontSize: 11)),
-                                const SizedBox(height: 2),
-                                Text(
-                                  currencyFormat.format(site?.spent ?? 0),
-                                  style: const TextStyle(color: Colors.orangeAccent, fontSize: 16, fontWeight: FontWeight.bold),
+                                CircleAvatar(
+                                  radius: 9,
+                                  backgroundColor: Colors.blue[100],
+                                  child: Text(
+                                    site.clientName != null && site.clientName!.isNotEmpty ? site.clientName![0].toUpperCase() : 'S',
+                                    style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF0A2540)),
+                                  ),
                                 ),
-                              ],
-                            ),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                const Text('Remaining Balance', style: TextStyle(color: Colors.white70, fontSize: 11)),
-                                const SizedBox(height: 2),
-                                Text(
-                                  currencyFormat.format((site?.assignedBudget ?? 0) - (site?.spent ?? 0)),
-                                  style: TextStyle(
-                                    color: ((site?.assignedBudget ?? 0) - (site?.spent ?? 0)) < 0 ? Colors.redAccent : Colors.greenAccent,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Client: ${site.clientName ?? 'N/A'}  |  Location: ${site.location ?? 'N/A'}',
+                                    style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.w500),
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                               ],
                             ),
-                          ],
-                        ),
-                      ] else ...[
-                        Row(
-                          children: [
-                            const Icon(Icons.calendar_today_outlined, color: Colors.white70, size: 14),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Started: ${site?.startDate != null ? dateFormat.format(site!.startDate!) : 'N/A'}',
-                              style: const TextStyle(color: Colors.white70, fontSize: 12),
-                            ),
-                            const Spacer(),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(8),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+
+                        // Financial Metric Bar
+                        if (canViewFinancials) ...[
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Assigned Budget', style: TextStyle(color: Colors.white70, fontSize: 10.5)),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    currencyFormat.format(site?.assignedBudget ?? 0),
+                                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
                               ),
-                              child: const Text(
-                                'Role Restricted View',
-                                style: TextStyle(color: Colors.white70, fontSize: 11),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  const Text('Total Spend', style: TextStyle(color: Colors.white70, fontSize: 10.5)),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    currencyFormat.format(site?.spent ?? 0),
+                                    style: const TextStyle(color: Colors.orangeAccent, fontSize: 14, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
                               ),
-                            ),
-                          ],
-                        ),
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  const Text('Remaining Balance', style: TextStyle(color: Colors.white70, fontSize: 10.5)),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    currencyFormat.format((site?.assignedBudget ?? 0) - (site?.spent ?? 0)),
+                                    style: TextStyle(
+                                      color: ((site?.assignedBudget ?? 0) - (site?.spent ?? 0)) < 0 ? Colors.redAccent : Colors.greenAccent,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ] else ...[
+                          Row(
+                            children: [
+                              const Icon(Icons.calendar_today_outlined, color: Colors.white70, size: 13),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Started: ${site?.startDate != null ? dateFormat.format(site!.startDate!) : 'N/A'}',
+                                style: const TextStyle(color: Colors.white70, fontSize: 11),
+                              ),
+                              const Spacer(),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: const Text(
+                                  'Role Restricted View',
+                                  style: TextStyle(color: Colors.white70, fontSize: 10.5),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ],
                   ),

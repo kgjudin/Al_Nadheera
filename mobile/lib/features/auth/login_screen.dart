@@ -3,9 +3,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/widgets/main_layout.dart';
 import '../../services/api_service.dart';
 
-
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final String? initialMessage;
+  const LoginScreen({super.key, this.initialMessage});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -25,6 +25,12 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _errorMessage;
 
   @override
+  void initState() {
+    super.initState();
+    _errorMessage = widget.initialMessage;
+  }
+
+  @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
@@ -32,6 +38,114 @@ class _LoginScreenState extends State<LoginScreen> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  void _showAdmissionPendingModal({
+    required String title,
+    required String message,
+    bool isDeclined = false,
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          elevation: 10,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: isDeclined ? Colors.red.shade50 : const Color(0xFFFFF8E1),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isDeclined ? Colors.red.shade200 : const Color(0xFFFFD54F),
+                      width: 2,
+                    ),
+                  ),
+                  child: Icon(
+                    isDeclined ? Icons.block_rounded : Icons.hourglass_top_rounded,
+                    size: 44,
+                    color: isDeclined ? Colors.red.shade700 : const Color(0xFFD97706),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF0A2540),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isDeclined ? Colors.red.shade100 : Colors.amber.shade100,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isDeclined ? Icons.cancel_outlined : Icons.lock_clock_rounded,
+                        size: 16,
+                        color: isDeclined ? Colors.red.shade900 : Colors.amber.shade900,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        isDeclined ? 'Status: Declined' : 'Status: Pending Super Admin Admission',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: isDeclined ? Colors.red.shade900 : Colors.amber.shade900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade700,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isDeclined ? Colors.red.shade700 : const Color(0xFF0A2540),
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      elevation: 0,
+                    ),
+                    onPressed: () => Navigator.of(ctx).pop(),
+                    child: const Text(
+                      'OK, Understood',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Future<void> _signIn() async {
@@ -65,13 +179,63 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
+      // Check user approval status in employees table
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      if (currentUser != null) {
+        try {
+          final empRes = await Supabase.instance.client
+              .from('employees')
+              .select('id, name, role, status')
+              .or('id.eq.${currentUser.id},email.ilike.$email')
+              .maybeSingle();
+
+          if (empRes != null) {
+            final role = empRes['role']?.toString().toLowerCase() ?? '';
+            final status = empRes['status']?.toString().toLowerCase() ?? 'active';
+            final isSuperAdmin = role == 'super admin';
+
+            if (!isSuperAdmin) {
+              if (status == 'pending') {
+                await Supabase.instance.client.auth.signOut();
+                if (mounted) {
+                  _showAdmissionPendingModal(
+                    title: 'Pending Super Admin Approval',
+                    message: 'You cannot enter the app yet.\n\nYou can access it once the Super Admin admits your request. Please check back later or contact your administrator.',
+                  );
+                }
+                return;
+              } else if (status == 'declined' || status == 'rejected') {
+                await Supabase.instance.client.auth.signOut();
+                if (mounted) {
+                  _showAdmissionPendingModal(
+                    title: 'Registration Declined',
+                    message: 'Your registration request has been declined by the Super Admin.\n\nPlease contact administration if you think this is a mistake.',
+                    isDeclined: true,
+                  );
+                }
+                return;
+              } else if (status == 'inactive') {
+                await Supabase.instance.client.auth.signOut();
+                if (mounted) {
+                  setState(() {
+                    _errorMessage = 'Your account is inactive. Please contact the administrator.';
+                  });
+                }
+                return;
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('Error verifying approval status during sign-in: $e');
+        }
+      }
+
       if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const MainLayout()),
         );
       }
     } on AuthException catch (e) {
-
       setState(() {
         _errorMessage = e.message;
       });
@@ -114,46 +278,60 @@ class _LoginScreenState extends State<LoginScreen> {
         throw Exception('Passwords do not match');
       }
 
-      final res = await Supabase.instance.client.auth.signUp(
-        email: email,
-        password: password,
-        data: {
-          'name': name,
-          'phone': phone,
-          'role': 'Staff',
-        },
-      );
-
-      if (res.user != null) {
-        try {
-          await Supabase.instance.client.from('employees').upsert({
-            'id': res.user!.id,
+      // Register via Supabase Auth with backend admin fallback
+      try {
+        final res = await Supabase.instance.client.auth.signUp(
+          email: email,
+          password: password,
+          data: {
             'name': name,
-            'email': email,
-            'phone': phone.isNotEmpty ? phone : null,
+            'phone': phone,
             'role': 'Staff',
-            'status': 'Active',
-          });
-        } catch (_) {}
+            'status': 'Pending',
+          },
+        );
+
+        final uid = res.user?.id;
+        if (uid != null) {
+          try {
+            await Supabase.instance.client.from('employees').upsert({
+              'id': uid,
+              'name': name,
+              'email': email,
+              'phone': phone.isNotEmpty ? phone : null,
+              'role': 'Staff',
+              'status': 'Pending',
+            });
+          } catch (_) {}
+        }
+      } catch (authErr) {
+        // Fallback to backend admin registration (uses service-role key, bypasses signup_disabled)
+        try {
+          await ApiService().register(name, email, phone, password);
+        } catch (backendErr) {
+          if (authErr is AuthException) {
+            rethrow;
+          }
+          throw Exception(backendErr.toString().replaceAll('Exception: ', ''));
+        }
       }
 
+      // CRITICAL: Immediately sign out so user CANNOT enter the app!
+      try {
+        await Supabase.instance.client.auth.signOut();
+      } catch (_) {}
+
       if (mounted) {
-        if (res.session != null) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (context) => const MainLayout()),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Account created! Please sign in with your credentials.'),
-              backgroundColor: Colors.green,
-            ),
-          );
-          setState(() {
-            _isSignUp = false;
-            _confirmPasswordController.clear();
-          });
-        }
+        setState(() {
+          _isSignUp = false;
+          _passwordController.clear();
+          _confirmPasswordController.clear();
+        });
+
+        _showAdmissionPendingModal(
+          title: 'Registration Submitted',
+          message: 'Thank you, $name!\n\nYour account has been submitted successfully. You cannot directly enter the app yet.\n\nYou can access it once the Super Admin admits and approves your request.',
+        );
       }
     } on AuthException catch (e) {
       setState(() {
@@ -479,7 +657,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   ),
                                 )
                               : Text(
-                                  _isSignUp ? 'CREATE ACCOUNT' : 'SIGN IN',
+                                  _isSignUp ? 'REGISTER FOR ADMISSION' : 'SIGN IN',
                                   style: const TextStyle(
                                     fontSize: 15,
                                     fontWeight: FontWeight.bold,

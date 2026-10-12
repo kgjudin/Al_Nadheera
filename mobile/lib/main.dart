@@ -94,23 +94,66 @@ class _InitialAuthCheckState extends State<InitialAuthCheck> {
     });
   }
 
-  void _redirect() {
+  Future<void> _redirect() async {
     try {
       final session = Supabase.instance.client.auth.currentSession;
       if (session != null) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (context) => const MainLayout()),
-        );
+        final user = Supabase.instance.client.auth.currentUser;
+        if (user != null) {
+          try {
+            final empRes = await Supabase.instance.client
+                .from('employees')
+                .select('id, name, role, status')
+                .eq('id', user.id)
+                .maybeSingle();
+
+            if (empRes != null) {
+              final role = empRes['role']?.toString().toLowerCase() ?? '';
+              final status = empRes['status']?.toString().toLowerCase() ?? 'active';
+              final isSuperAdmin = role == 'super admin';
+
+              if (!isSuperAdmin && status != 'active') {
+                await Supabase.instance.client.auth.signOut();
+                if (mounted) {
+                  String message = 'Your account is pending Super Admin approval. You can access it once admitted.';
+                  if (status == 'declined' || status == 'rejected') {
+                    message = 'Your registration request was declined by the administrator.';
+                  } else if (status == 'inactive') {
+                    message = 'Your account is inactive. Please contact the administrator.';
+                  }
+                  Navigator.of(context).pushReplacement(
+                    MaterialPageRoute(
+                      builder: (context) => LoginScreen(initialMessage: message),
+                    ),
+                  );
+                }
+                return;
+              }
+            }
+          } catch (e) {
+            debugPrint('Error verifying employee status in InitialAuthCheck: $e');
+          }
+        }
+
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const MainLayout()),
+          );
+        }
       } else {
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const LoginScreen()),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error during auth redirect: $e');
+      if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(builder: (context) => const LoginScreen()),
         );
       }
-    } catch (e) {
-      debugPrint('Error during auth redirect: $e');
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-      );
     }
   }
 

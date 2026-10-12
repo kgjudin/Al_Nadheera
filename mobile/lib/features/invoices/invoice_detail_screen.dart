@@ -5,6 +5,8 @@ import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/invoice_model.dart';
+import '../../services/document_template_service.dart';
+import '../document_templates/live_pdf_template_designer_screen.dart';
 import 'create_edit_invoice_screen.dart';
 import 'invoice_pdf_generator.dart';
 
@@ -123,6 +125,27 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
             backgroundColor: const Color(0xFF0A2540),
             foregroundColor: Colors.white,
             actions: [
+              IconButton(
+                icon: const Icon(Icons.palette_outlined),
+                tooltip: 'Customize Layout & Alignments',
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  final currentTmpl = DocumentTemplateService.instance.getTemplate('invoice');
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => LivePdfTemplateDesignerScreen(
+                        initialTemplate: currentTmpl,
+                        templateKey: 'invoice',
+                        invoice: _invoice,
+                        onTemplateSaved: (tmpl) {
+                          setState(() {});
+                        },
+                      ),
+                    ),
+                  );
+                },
+              ),
               IconButton(
                 icon: const Icon(Icons.share_rounded),
                 onPressed: () => Printing.sharePdf(bytes: pdfBytes, filename: fileName),

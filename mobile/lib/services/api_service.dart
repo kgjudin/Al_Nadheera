@@ -184,6 +184,28 @@ class ApiService {
     _processResponse(response);
   }
 
+  Future<void> approveEmployee(String employeeId, {String? role, String? roleId, String? siteId}) async {
+    final payload = <String, dynamic>{};
+    if (role != null) payload['role'] = role;
+    if (roleId != null) payload['role_id'] = roleId;
+    if (siteId != null) payload['assigned_site_id'] = siteId;
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/employees/$employeeId/approve'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode(payload),
+    );
+    _processResponse(response);
+  }
+
+  Future<void> declineEmployee(String employeeId) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/employees/$employeeId/decline'),
+      headers: {'Content-Type': 'application/json'},
+    );
+    _processResponse(response);
+  }
+
   // -- Tasks --
   Future<List<dynamic>> getTasks(String siteId) async {
     final response = await http.get(Uri.parse('$baseUrl/sites/$siteId/tasks'));
@@ -234,7 +256,7 @@ class ApiService {
     _processResponse(response);
   }
 
-  // -- Auth Fallback --
+  // -- Auth --
   Future<Map<String, dynamic>> login(String email, String password) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/login'),
@@ -244,6 +266,22 @@ class ApiService {
     final data = _processResponse(response);
     return Map<String, dynamic>.from(data);
   }
+
+  Future<Map<String, dynamic>> register(String name, String email, String phone, String password) async {
+    final response = await http.post(
+      Uri.parse('$baseUrl/auth/register'),
+      headers: {'Content-Type': 'application/json'},
+      body: json.encode({
+        'name': name,
+        'email': email,
+        'phone': phone,
+        'password': password,
+      }),
+    );
+    final data = _processResponse(response);
+    return Map<String, dynamic>.from(data);
+  }
 }
+
 
 

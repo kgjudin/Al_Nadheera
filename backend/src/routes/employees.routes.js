@@ -7,9 +7,10 @@ router.get('/', employeesController.getAllEmployees);
 router.post('/', employeesController.createEmployee);
 router.get('/:id', employeesController.getEmployeeById);
 router.put('/:id', employeesController.updateEmployee);
+router.post('/:id/approve', employeesController.approveEmployee);
+router.post('/:id/decline', employeesController.declineEmployee);
 router.put('/:id/custom-permissions', rolesController.updateEmployeeCustomPermissions);
 router.delete('/:id', employeesController.deleteEmployee);
 router.post('/:id/change-password', employeesController.changePassword);
 
 module.exports = router;
-

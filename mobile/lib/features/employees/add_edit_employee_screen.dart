@@ -459,7 +459,7 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
                   const SizedBox(height: 16),
                   Builder(
                     builder: (context) {
-                      final statusOptions = ['Active', 'Inactive', 'On Leave'];
+                      final statusOptions = ['Active', 'Pending', 'Declined', 'Inactive', 'On Leave'];
                       if (!statusOptions.contains(_status)) {
                         statusOptions.add(_status);
                       }

@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:printing/printing.dart';
 import '../../models/document_template_model.dart';
 import '../../models/invoice_model.dart';
 import '../../services/document_template_service.dart';
-import '../invoices/invoice_pdf_generator.dart';
+import 'live_pdf_template_designer_screen.dart';
 
 class DocumentTemplateSettingsScreen extends StatefulWidget {
   const DocumentTemplateSettingsScreen({super.key});
@@ -53,6 +52,9 @@ class _DocumentTemplateSettingsScreenState
   bool _showSeal = true;
   bool _showSignature = true;
   bool _showBankDetails = true;
+  bool _showSealWhenPending = true;
+  bool _showSignatureWhenPending = true;
+  bool _showLogoWhenPending = true;
 
   final List<Color> _colorOptions = const [
     Color(0xFF0A2540), // Classic Dark Navy
@@ -136,6 +138,9 @@ class _DocumentTemplateSettingsScreenState
     _showSeal = t.showSeal;
     _showSignature = t.showSignature;
     _showBankDetails = t.showBankDetails;
+    _showSealWhenPending = t.layoutConfig.showSealWhenPending;
+    _showSignatureWhenPending = t.layoutConfig.showSignatureWhenPending;
+    _showLogoWhenPending = t.layoutConfig.showLogoWhenPending;
   }
 
   DocumentTemplate _buildCurrentTemplate() {
@@ -166,6 +171,11 @@ class _DocumentTemplateSettingsScreenState
       showSeal: _showSeal,
       showSignature: _showSignature,
       showBankDetails: _showBankDetails,
+      layoutConfig: existing.layoutConfig.copyWith(
+        showSealWhenPending: _showSealWhenPending,
+        showSignatureWhenPending: _showSignatureWhenPending,
+        showLogoWhenPending: _showLogoWhenPending,
+      ),
       isDefault: true,
     );
   }
@@ -297,7 +307,7 @@ class _DocumentTemplateSettingsScreenState
     }
   }
 
-  Future<void> _previewSamplePdf() async {
+  void _previewSamplePdf() {
     final template = _buildCurrentTemplate();
 
     // Create a mock invoice to render live preview
@@ -307,7 +317,7 @@ class _DocumentTemplateSettingsScreenState
       date: DateTime.now(),
       dueDate: DateTime.now().add(const Duration(days: 14)),
       status: 'Paid',
-      customerName: 'Sample Client W.L.L',
+      customerName: 'Bahrain Real Estate Development Co.',
       customerPhone: '+973 3311 2233',
       customerAddress: 'Building 102, Road 402, Seef District, Bahrain',
       customerVatNumber: '200098765400003',
@@ -338,46 +348,22 @@ class _DocumentTemplateSettingsScreenState
       createdAt: DateTime.now(),
     );
 
-    try {
-      final pdfBytes = await InvoicePdfGenerator.generateInvoicePdf(
-        sampleInvoice,
-        customTemplate: template,
-      );
-
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (ctx) => Dialog.fullscreen(
-            child: Scaffold(
-              appBar: AppBar(
-                title: Text('${_templateLabels[_selectedTabIndex]} - Print Preview'),
-                backgroundColor: const Color(0xFF0A2540),
-                foregroundColor: Colors.white,
-                actions: [
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded),
-                    onPressed: () => Navigator.pop(ctx),
-                  ),
-                ],
-              ),
-              body: PdfPreview(
-                build: (format) => pdfBytes,
-                canChangeOrientation: false,
-                canChangePageFormat: false,
-                canDebug: false,
-                pdfFileName: 'template_preview.pdf',
-              ),
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to generate preview: $e')),
-        );
-      }
-    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (ctx) => LivePdfTemplateDesignerScreen(
+          initialTemplate: template,
+          templateKey: _templateKeys[_selectedTabIndex],
+          invoice: sampleInvoice,
+          onTemplateSaved: (savedTmpl) {
+            setState(() {
+              _service.templates[_templateKeys[_selectedTabIndex]] = savedTmpl;
+              _populateFieldsForType(savedTmpl.templateType);
+            });
+          },
+        ),
+      ),
+    );
   }
 
   @override
@@ -473,7 +459,67 @@ class _DocumentTemplateSettingsScreenState
                   ),
                 ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
+
+                // Prominent Live PDF Layout Studio Launch Card
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF0A2540), Color(0xFF1E3A5F)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF0A2540).withValues(alpha: 0.18),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: _previewSamplePdf,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.palette_outlined, color: Colors.white, size: 24),
+                            ),
+                            const SizedBox(width: 14),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Live PDF Alignment & Layout Studio',
+                                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Set alignment, designs & positions with real-time preview',
+                                    style: TextStyle(fontSize: 11, color: Color(0xFF93C5FD)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 16),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
 
                 // 1. Assets Upload Section (Logo, Seal, Signature)
                 _buildCardSection(
@@ -527,6 +573,57 @@ class _DocumentTemplateSettingsScreenState
                         value: _showSignature,
                         activeThumbColor: const Color(0xFF0A2540),
                         onChanged: (v) => setState(() => _showSignature = v),
+                      ),
+                      const Divider(height: 20),
+
+                      // Pending Status Visibility Sub-Card
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF8FAFC),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: const Color(0xFFE2E8F0)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.verified_outlined, size: 16, color: Color(0xFF0A2540)),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Pending Status Display Rules',
+                                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0A2540)),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            SwitchListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('Show Official Seal if Pending', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                              subtitle: const Text('Render official company seal on pending bills', style: TextStyle(fontSize: 10.5, color: Colors.grey)),
+                              value: _showSealWhenPending,
+                              activeThumbColor: const Color(0xFF0A2540),
+                              onChanged: (v) => setState(() => _showSealWhenPending = v),
+                            ),
+                            SwitchListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('Show Signature Line if Pending', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                              subtitle: const Text('Render authorized signatory line on pending bills', style: TextStyle(fontSize: 10.5, color: Colors.grey)),
+                              value: _showSignatureWhenPending,
+                              activeThumbColor: const Color(0xFF0A2540),
+                              onChanged: (v) => setState(() => _showSignatureWhenPending = v),
+                            ),
+                            SwitchListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('Show Company Logo if Pending', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                              subtitle: const Text('Render company logo on pending bills', style: TextStyle(fontSize: 10.5, color: Colors.grey)),
+                              value: _showLogoWhenPending,
+                              activeThumbColor: const Color(0xFF0A2540),
+                              onChanged: (v) => setState(() => _showLogoWhenPending = v),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),

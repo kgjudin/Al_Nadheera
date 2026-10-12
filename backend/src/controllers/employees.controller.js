@@ -185,3 +185,71 @@ exports.changePassword = async (req, res) => {
   }
 };
 
+exports.approveEmployee = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role, role_id, assigned_site_id } = req.body;
+
+    const updates = { status: 'Active' };
+    if (role) updates.role = role;
+    if (role_id) updates.role_id = role_id;
+    if (assigned_site_id !== undefined) updates.assigned_site_id = assigned_site_id;
+
+    // Resolve role name if role_id is provided without role
+    if (updates.role_id && !updates.role) {
+      const { data: rData } = await supabase.from('roles').select('name').eq('id', updates.role_id).maybeSingle();
+      if (rData) updates.role = rData.name;
+    } else if (updates.role && !updates.role_id) {
+      const { data: rData } = await supabase.from('roles').select('id').ilike('name', updates.role).maybeSingle();
+      if (rData) updates.role_id = rData.id;
+    }
+
+    const { data, error } = await supabase
+      .from('employees')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Also update auth user metadata if role was updated
+    if (updates.role) {
+      try {
+        await supabase.auth.admin.updateUserById(id, {
+          user_metadata: { role: updates.role, status: 'Active' },
+        });
+      } catch (_) {}
+    }
+
+    res.status(200).json({ success: true, message: 'User approved and admitted successfully', data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.declineEmployee = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { data, error } = await supabase
+      .from('employees')
+      .update({ status: 'Declined' })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    try {
+      await supabase.auth.admin.updateUserById(id, {
+        user_metadata: { status: 'Declined' },
+      });
+    } catch (_) {}
+
+    res.status(200).json({ success: true, message: 'User registration declined successfully', data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+

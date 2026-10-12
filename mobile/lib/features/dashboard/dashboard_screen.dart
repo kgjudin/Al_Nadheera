@@ -31,6 +31,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _userName = 'Judin KG';
   String _userRole = 'Super Admin';
   String? _userAvatarUrl;
+  int _pendingCount = 0;
 
   @override
   void initState() {
@@ -113,10 +114,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final empsData = await _supabase.from('employees').select('*').order('created_at', ascending: false).limit(6);
       final emps = List<Map<String, dynamic>>.from(empsData);
 
+      // 3. Fetch pending approval count
+      int pendingCount = 0;
+      try {
+        final pendingRes = await _supabase.from('employees').select('id').eq('status', 'Pending');
+        pendingCount = (pendingRes as List).length;
+      } catch (_) {}
+
       if (mounted) {
         setState(() {
           _recentSites = sites;
           _teamMembers = emps;
+          _pendingCount = pendingCount;
         });
       }
     } catch (_) {}
@@ -172,6 +181,64 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                       // 2. HERO GREETING BANNER
                       _buildHeroBanner(formattedDate),
+
+                      if (_pendingCount > 0 && (_permissionService.isSuperAdmin || _permissionService.isAdmin)) ...[
+                        const SizedBox(height: 16),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const EmployeeListScreen(initialTab: 1)),
+                            ).then((_) => _loadData());
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFFD97706), Color(0xFFB45309)],
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(0xFFD97706).withValues(alpha: 0.3),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.2),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.person_add_rounded, color: Colors.white, size: 22),
+                                ),
+                                const SizedBox(width: 14),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '$_pendingCount User Admission Request${_pendingCount > 1 ? "s" : ""} Waiting',
+                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      const Text(
+                                        'Tap to review and approve new sign-ups',
+                                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 14),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
 
                       const SizedBox(height: 24),
 

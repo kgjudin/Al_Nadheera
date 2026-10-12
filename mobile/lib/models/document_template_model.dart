@@ -1,3 +1,5 @@
+import 'template_layout_config.dart';
+
 class DocumentTemplate {
   final String id;
   final String templateType;
@@ -28,6 +30,7 @@ class DocumentTemplate {
   final bool isDefault;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final TemplateLayoutConfig layoutConfig;
 
   DocumentTemplate({
     required this.id,
@@ -39,7 +42,7 @@ class DocumentTemplate {
     this.logoUrl,
     this.sealUrl,
     this.signatureUrl,
-    this.address = 'Kingdom of Bahrain • Manama',
+    this.address = 'Kingdom of Bahrain | Manama',
     this.phone = '+973 3982 4512 / +973 1740 1234',
     this.email = 'info@alnadheera.com',
     this.website = 'www.alnadheera.com',
@@ -51,7 +54,7 @@ class DocumentTemplate {
     this.swiftCode = 'NBOBBHBM',
     this.termsAndConditions =
         'Payment is due within 14 days of invoice date. Thank you for your business.',
-    this.footerText = 'Al Nadheera Contracting W.L.L. • Kingdom of Bahrain',
+    this.footerText = 'Al Nadheera Contracting W.L.L. | Kingdom of Bahrain',
     this.primaryColor = '#0A2540',
     this.accentColor = '#0B5ED7',
     this.showSeal = true,
@@ -60,6 +63,7 @@ class DocumentTemplate {
     this.isDefault = true,
     this.createdAt,
     this.updatedAt,
+    this.layoutConfig = const TemplateLayoutConfig(),
   });
 
   factory DocumentTemplate.defaultTemplate(String type) {
@@ -87,10 +91,26 @@ class DocumentTemplate {
       templateName: name,
       tagline: tagline,
       primaryColor: color,
+      layoutConfig: const TemplateLayoutConfig(),
     );
   }
 
   factory DocumentTemplate.fromJson(Map<String, dynamic> json) {
+    final rawTerms = json['terms_and_conditions']?.toString();
+
+    // Check if layout_config is provided as a top-level map, otherwise extract from terms tag
+    TemplateLayoutConfig parsedConfig;
+    if (json['layout_config'] != null && json['layout_config'] is Map<String, dynamic>) {
+      parsedConfig = TemplateLayoutConfig.fromJson(json['layout_config'] as Map<String, dynamic>);
+    } else {
+      parsedConfig = TemplateLayoutConfig.extractFromTerms(rawTerms);
+    }
+
+    // Clean terms so internal configuration tag is never visible to the user
+    final cleanTerms = rawTerms != null
+        ? TemplateLayoutConfig.stripFromTerms(rawTerms)
+        : 'Payment is due within 14 days of invoice date. Thank you for your business.';
+
     return DocumentTemplate(
       id: json['id']?.toString() ?? '',
       templateType: json['template_type']?.toString() ?? 'invoice',
@@ -102,7 +122,7 @@ class DocumentTemplate {
       logoUrl: json['logo_url']?.toString(),
       sealUrl: json['seal_url']?.toString(),
       signatureUrl: json['signature_url']?.toString(),
-      address: json['address']?.toString() ?? 'Kingdom of Bahrain • Manama',
+      address: json['address']?.toString() ?? 'Kingdom of Bahrain | Manama',
       phone: json['phone']?.toString() ?? '+973 3982 4512 / +973 1740 1234',
       email: json['email']?.toString() ?? 'info@alnadheera.com',
       website: json['website']?.toString(),
@@ -113,10 +133,9 @@ class DocumentTemplate {
           'AL NADHEERA CONTRACTING W.L.L',
       iban: json['iban']?.toString() ?? 'BH64 NBOB 0000 0012 3456 7890 01',
       swiftCode: json['swift_code']?.toString() ?? 'NBOBBHBM',
-      termsAndConditions: json['terms_and_conditions']?.toString() ??
-          'Payment is due within 14 days of invoice date. Thank you for your business.',
+      termsAndConditions: cleanTerms,
       footerText: json['footer_text']?.toString() ??
-          'Al Nadheera Contracting W.L.L. • Kingdom of Bahrain',
+          'Al Nadheera Contracting W.L.L. | Kingdom of Bahrain',
       primaryColor: json['primary_color']?.toString() ?? '#0A2540',
       accentColor: json['accent_color']?.toString() ?? '#0B5ED7',
       showSeal: json['show_seal'] != false,
@@ -129,10 +148,17 @@ class DocumentTemplate {
       updatedAt: json['updated_at'] != null
           ? DateTime.tryParse(json['updated_at'].toString())
           : null,
+      layoutConfig: parsedConfig,
     );
   }
 
   Map<String, dynamic> toJson() {
+    // Embed the layout configuration into terms_and_conditions for seamless sync without DB schema alteration
+    final serializedTerms = TemplateLayoutConfig.embedInTerms(
+      termsAndConditions ?? 'Payment is due within 14 days of invoice date. Thank you for your business.',
+      layoutConfig,
+    );
+
     return {
       'template_type': templateType,
       'template_name': templateName,
@@ -152,7 +178,7 @@ class DocumentTemplate {
       'account_name': accountName,
       'iban': iban,
       'swift_code': swiftCode,
-      'terms_and_conditions': termsAndConditions,
+      'terms_and_conditions': serializedTerms,
       'footer_text': footerText,
       'primary_color': primaryColor,
       'accent_color': accentColor,
@@ -191,6 +217,7 @@ class DocumentTemplate {
     bool? showSignature,
     bool? showBankDetails,
     bool? isDefault,
+    TemplateLayoutConfig? layoutConfig,
   }) {
     return DocumentTemplate(
       id: id,
@@ -222,6 +249,7 @@ class DocumentTemplate {
       isDefault: isDefault ?? this.isDefault,
       createdAt: createdAt,
       updatedAt: updatedAt,
+      layoutConfig: layoutConfig ?? this.layoutConfig,
     );
   }
 }

@@ -308,7 +308,7 @@ class _SiteBudgetTabState extends State<SiteBudgetTab> {
                             style: const pw.TextStyle(fontSize: 8.5, color: PdfColors.grey700),
                           ),
                           pw.Text(
-                            '${tmpl.address} • CR: ${tmpl.crNumber ?? "N/A"} • VAT: ${tmpl.vatNumber ?? "N/A"}',
+                            '${tmpl.address.replaceAll("•", " | ")} | CR: ${tmpl.crNumber ?? "N/A"} | VAT: ${tmpl.vatNumber ?? "N/A"}',
                             style: const pw.TextStyle(fontSize: 7.5, color: PdfColors.grey600),
                           ),
                         ],
