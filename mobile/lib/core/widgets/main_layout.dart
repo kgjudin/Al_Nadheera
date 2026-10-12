@@ -131,6 +131,7 @@ class _MainLayoutState extends State<MainLayout> {
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -142,12 +143,17 @@ class _MainLayoutState extends State<MainLayout> {
             final metrics = snapshot.data;
             final remaining = metrics?.remainingBudget ?? 0.0;
 
-            return Padding(
-              padding: const EdgeInsets.all(20.0),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+            return SafeArea(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.85,
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                   Center(
                     child: Container(
                       width: 40,
@@ -389,12 +395,14 @@ class _MainLayoutState extends State<MainLayout> {
                   const SizedBox(height: 10),
                 ],
               ),
-            );
-          },
+            ),
+          ),
         );
       },
     );
-  }
+  },
+);
+}
 
   @override
   Widget build(BuildContext context) {
