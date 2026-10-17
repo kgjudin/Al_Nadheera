@@ -4,6 +4,7 @@ import '../../models/document_template_model.dart';
 import '../../models/invoice_model.dart';
 import '../../services/document_template_service.dart';
 import 'live_pdf_template_designer_screen.dart';
+import '../invoices/b2b_document_form_screen.dart';
 
 class DocumentTemplateSettingsScreen extends StatefulWidget {
   const DocumentTemplateSettingsScreen({super.key});
@@ -509,6 +510,71 @@ class _DocumentTemplateSettingsScreenState
                                   Text(
                                     'Set alignment, designs & positions with real-time preview',
                                     style: TextStyle(fontSize: 11, color: Color(0xFF93C5FD)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white70, size: 16),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // B2B Quotation & BOQ Form Designer Card
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF881337), Color(0xFFC51A1B)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFC51A1B).withValues(alpha: 0.2),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const B2bDocumentFormScreen()),
+                        );
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.description_outlined, color: Colors.white, size: 24),
+                            ),
+                            const SizedBox(width: 14),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'B2B Quotation / BOQ Document Designer',
+                                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.white),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Create & print exact ANCC official quotation with BOQ items',
+                                    style: TextStyle(fontSize: 11, color: Color(0xFFFECDD3)),
                                   ),
                                 ],
                               ),

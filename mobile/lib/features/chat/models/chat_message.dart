@@ -6,6 +6,8 @@ class ChatMessage {
   final String message;
   final String messageType; // 'text', 'image', 'file', 'audio'
   final String? mediaUrl;
+  final String? fileName;
+  final int? fileSize;
   final String? replyToId;
   final String? replyToText;
   final String? replyToSenderName;
@@ -22,6 +24,8 @@ class ChatMessage {
     required this.message,
     this.messageType = 'text',
     this.mediaUrl,
+    this.fileName,
+    this.fileSize,
     this.replyToId,
     this.replyToText,
     this.replyToSenderName,
@@ -40,6 +44,10 @@ class ChatMessage {
       message: json['message'] ?? '',
       messageType: json['message_type'] ?? 'text',
       mediaUrl: json['media_url'],
+      fileName: json['file_name'],
+      fileSize: json['file_size'] is int 
+          ? json['file_size'] 
+          : int.tryParse(json['file_size']?.toString() ?? ''),
       replyToId: json['reply_to_id']?.toString(),
       replyToText: json['reply_to_text'],
       replyToSenderName: json['reply_to_sender_name'],
@@ -60,6 +68,8 @@ class ChatMessage {
       'message': message,
       'message_type': messageType,
       if (mediaUrl != null) 'media_url': mediaUrl,
+      if (fileName != null) 'file_name': fileName,
+      if (fileSize != null) 'file_size': fileSize,
       if (replyToId != null) 'reply_to_id': replyToId,
       if (replyToText != null) 'reply_to_text': replyToText,
       if (replyToSenderName != null) 'reply_to_sender_name': replyToSenderName,

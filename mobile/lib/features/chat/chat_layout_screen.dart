@@ -121,8 +121,13 @@ class _ChatLayoutScreenState extends State<ChatLayoutScreen> {
       DateTime? lastMessageTime;
 
       if (lastMsg != null) {
-        if (lastMsg['message_type'] == 'image') {
+        final mType = lastMsg['message_type'];
+        if (mType == 'image') {
           lastMessageText = '📷 Photo';
+        } else if (mType == 'document' || mType == 'file') {
+          lastMessageText = '📄 Document';
+        } else if (mType == 'location') {
+          lastMessageText = '📍 Location';
         } else {
           lastMessageText = lastMsg['message']?.toString();
         }
@@ -164,8 +169,13 @@ class _ChatLayoutScreenState extends State<ChatLayoutScreen> {
       DateTime? lastMessageTime;
 
       if (lastMsg != null) {
-        if (lastMsg['message_type'] == 'image') {
+        final mType = lastMsg['message_type'];
+        if (mType == 'image') {
           lastMessageText = '📷 Photo';
+        } else if (mType == 'document' || mType == 'file') {
+          lastMessageText = '📄 Document';
+        } else if (mType == 'location') {
+          lastMessageText = '📍 Location';
         } else {
           lastMessageText = lastMsg['message']?.toString();
         }

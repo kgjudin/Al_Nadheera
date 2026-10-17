@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 class InvoiceItem {
   final String? id;
   final String? invoiceId;
+  final String? itemClass;
   final String itemDescription;
   final double quantity;
   final double unitPrice;
@@ -10,6 +13,7 @@ class InvoiceItem {
   InvoiceItem({
     this.id,
     this.invoiceId,
+    this.itemClass,
     required this.itemDescription,
     required this.quantity,
     required this.unitPrice,
@@ -22,10 +26,23 @@ class InvoiceItem {
     final price = (json['unit_price'] as num?)?.toDouble() ?? 0.0;
     final amt = (json['amount'] as num?)?.toDouble() ?? (qty * price);
 
+    String desc = json['item_description']?.toString() ?? '';
+    String? itemClass = json['item_class']?.toString() ?? json['class']?.toString();
+
+    // If itemClass was not in dedicated column, check if it was packed into item_description as [CLASS: X]
+    if ((itemClass == null || itemClass.isEmpty) && desc.startsWith('[CLASS:')) {
+      final closeIdx = desc.indexOf(']');
+      if (closeIdx != -1) {
+        itemClass = desc.substring(7, closeIdx).trim();
+        desc = desc.substring(closeIdx + 1).trim();
+      }
+    }
+
     return InvoiceItem(
       id: json['id']?.toString(),
       invoiceId: json['invoice_id']?.toString(),
-      itemDescription: json['item_description']?.toString() ?? '',
+      itemClass: itemClass,
+      itemDescription: desc,
       quantity: qty,
       unitPrice: price,
       amount: amt,
@@ -33,10 +50,16 @@ class InvoiceItem {
     );
   }
 
-  Map<String, dynamic> toJson({String? parentInvoiceId}) {
+  Map<String, dynamic> toJson({String? parentInvoiceId, bool useDedicatedColumns = true}) {
+    String desc = itemDescription;
+    if (!useDedicatedColumns && itemClass != null && itemClass!.isNotEmpty) {
+      desc = '[CLASS: $itemClass] $desc';
+    }
+
     return {
       if (parentInvoiceId != null) 'invoice_id': parentInvoiceId,
-      'item_description': itemDescription,
+      if (useDedicatedColumns && itemClass != null && itemClass!.isNotEmpty) 'item_class': itemClass,
+      'item_description': desc,
       'quantity': quantity,
       'unit_price': unitPrice,
       'amount': amount,
@@ -69,6 +92,12 @@ class Invoice {
   final String? paymentTerms;
   final List<InvoiceItem> items;
   final DateTime createdAt;
+  final String? documentType;
+  final String? subject;
+  final String? salutation;
+  final String? introText;
+  final String? tableHeaderTitle;
+  final Map<String, dynamic>? sourceConfig;
 
   Invoice({
     required this.id,
@@ -94,12 +123,40 @@ class Invoice {
     this.paymentTerms,
     this.items = const [],
     required this.createdAt,
+    this.documentType = 'B2B',
+    this.subject,
+    this.salutation,
+    this.introText,
+    this.tableHeaderTitle,
+    this.sourceConfig,
   });
 
   bool get isPaid => status.toLowerCase() == 'paid';
   bool get isPending => status.toLowerCase() == 'pending';
 
   factory Invoice.fromJson(Map<String, dynamic> json, {List<InvoiceItem>? items}) {
+    String? rawNotes = json['notes']?.toString();
+    String? displayNotes = rawNotes;
+    Map<String, dynamic>? embeddedMeta;
+
+    if (rawNotes != null && rawNotes.contains('<!--B2B_META:')) {
+      final startIndex = rawNotes.indexOf('<!--B2B_META:') + '<!--B2B_META:'.length;
+      final endIndex = rawNotes.indexOf('-->', startIndex);
+      if (endIndex != -1) {
+        final metaJsonStr = rawNotes.substring(startIndex, endIndex);
+        try {
+          final decoded = jsonDecode(metaJsonStr);
+          if (decoded is Map<String, dynamic>) {
+            embeddedMeta = decoded;
+          }
+          final before = rawNotes.substring(0, rawNotes.indexOf('<!--B2B_META:'));
+          final after = rawNotes.substring(endIndex + 3);
+          displayNotes = ('$before $after').trim();
+          if (displayNotes.isEmpty) displayNotes = null;
+        } catch (_) {}
+      }
+    }
+
     return Invoice(
       id: json['id']?.toString() ?? '',
       invoiceNumber: json['invoice_number']?.toString() ?? 'INV',
@@ -124,7 +181,7 @@ class Invoice {
       vatRate: (json['vat_rate'] as num?)?.toDouble() ?? 0.0,
       vatAmount: (json['vat_amount'] as num?)?.toDouble() ?? 0.0,
       totalAmount: (json['total_amount'] as num?)?.toDouble() ?? 0.0,
-      notes: json['notes']?.toString(),
+      notes: displayNotes,
       paymentTerms: json['payment_terms']?.toString(),
       items: items ??
           (json['invoice_items'] is List
@@ -135,11 +192,19 @@ class Invoice {
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
           : DateTime.now(),
+      documentType: json['document_type']?.toString() ?? embeddedMeta?['documentType']?.toString() ?? 'B2B',
+      subject: json['subject']?.toString() ?? embeddedMeta?['subject']?.toString(),
+      salutation: json['salutation']?.toString() ?? embeddedMeta?['salutation']?.toString(),
+      introText: json['intro_text']?.toString() ?? embeddedMeta?['introText']?.toString(),
+      tableHeaderTitle: json['table_header_title']?.toString() ?? embeddedMeta?['tableHeaderTitle']?.toString(),
+      sourceConfig: (json['source_config'] is Map
+          ? Map<String, dynamic>.from(json['source_config'] as Map)
+          : null) ?? (embeddedMeta?['sourceConfig'] is Map ? Map<String, dynamic>.from(embeddedMeta!['sourceConfig'] as Map) : null),
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
+  Map<String, dynamic> toJson({bool useDedicatedColumns = true}) {
+    final Map<String, dynamic> data = {
       'invoice_number': invoiceNumber,
       'date': date.toIso8601String().substring(0, 10),
       if (dueDate != null) 'due_date': dueDate!.toIso8601String().substring(0, 10),
@@ -158,14 +223,49 @@ class Invoice {
       'vat_rate': vatRate,
       'vat_amount': vatAmount,
       'total_amount': totalAmount,
-      if (notes != null && notes!.isNotEmpty) 'notes': notes,
       if (paymentTerms != null && paymentTerms!.isNotEmpty) 'payment_terms': paymentTerms,
     };
+
+    if (useDedicatedColumns) {
+      if (notes != null && notes!.isNotEmpty) data['notes'] = notes;
+      if (documentType != null && documentType!.isNotEmpty) data['document_type'] = documentType;
+      if (subject != null && subject!.isNotEmpty) data['subject'] = subject;
+      if (salutation != null && salutation!.isNotEmpty) data['salutation'] = salutation;
+      if (introText != null && introText!.isNotEmpty) data['intro_text'] = introText;
+      if (tableHeaderTitle != null && tableHeaderTitle!.isNotEmpty) data['table_header_title'] = tableHeaderTitle;
+      if (sourceConfig != null) data['source_config'] = sourceConfig;
+    } else {
+      final meta = <String, dynamic>{
+        if (documentType != null) 'documentType': documentType,
+        if (subject != null) 'subject': subject,
+        if (salutation != null) 'salutation': salutation,
+        if (introText != null) 'introText': introText,
+        if (tableHeaderTitle != null) 'tableHeaderTitle': tableHeaderTitle,
+        if (sourceConfig != null) 'sourceConfig': sourceConfig,
+      };
+
+      String combinedNotes = notes ?? '';
+      if (meta.isNotEmpty) {
+        final metaString = '<!--B2B_META:${jsonEncode(meta)}-->';
+        combinedNotes = combinedNotes.isNotEmpty ? '$combinedNotes\n$metaString' : metaString;
+      }
+      if (combinedNotes.isNotEmpty) {
+        data['notes'] = combinedNotes;
+      }
+    }
+
+    return data;
   }
 
   Invoice copyWith({
     String? status,
     List<InvoiceItem>? items,
+    String? documentType,
+    String? subject,
+    String? salutation,
+    String? introText,
+    String? tableHeaderTitle,
+    Map<String, dynamic>? sourceConfig,
   }) {
     return Invoice(
       id: id,
@@ -191,6 +291,12 @@ class Invoice {
       paymentTerms: paymentTerms,
       items: items ?? this.items,
       createdAt: createdAt,
+      documentType: documentType ?? this.documentType,
+      subject: subject ?? this.subject,
+      salutation: salutation ?? this.salutation,
+      introText: introText ?? this.introText,
+      tableHeaderTitle: tableHeaderTitle ?? this.tableHeaderTitle,
+      sourceConfig: sourceConfig ?? this.sourceConfig,
     );
   }
 }

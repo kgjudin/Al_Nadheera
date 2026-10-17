@@ -4,11 +4,10 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/utils/currency_words_converter.dart';
 import '../../models/invoice_model.dart';
-import '../../services/document_template_service.dart';
-import '../document_templates/live_pdf_template_designer_screen.dart';
-import 'create_edit_invoice_screen.dart';
-import 'invoice_pdf_generator.dart';
+import 'b2b_quotation_pdf_generator.dart';
+import 'b2b_document_form_screen.dart';
 
 class InvoiceDetailScreen extends StatefulWidget {
   final Invoice invoice;
@@ -24,7 +23,8 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   late Invoice _invoice;
   bool _isLoading = false;
   bool _isGeneratingPdf = false;
-  final currencyFormat = NumberFormat.currency(symbol: 'BHD ', decimalDigits: 3);
+  final NumberFormat _currFormat = NumberFormat('#,##0.000', 'en_US');
+  final DateFormat _dateFormat = DateFormat('dd/MM/yyyy');
 
   @override
   void initState() {
@@ -84,8 +84,8 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   Future<void> _handlePdfAction({bool share = false}) async {
     setState(() => _isGeneratingPdf = true);
     try {
-      final pdfBytes = await InvoicePdfGenerator.generateInvoicePdf(_invoice);
-      final fileName = '${_invoice.invoiceNumber}_${_invoice.status}.pdf';
+      final pdfBytes = await B2bQuotationPdfGenerator.generatePdf(_invoice);
+      final fileName = '${_invoice.invoiceNumber}.pdf';
 
       try {
         if (share) {
@@ -97,7 +97,6 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
           );
         }
       } catch (printingErr) {
-        // Fallback in-app preview dialog if native printing plugin fails
         if (mounted) {
           _showInAppPdfDialog(pdfBytes, fileName);
         }
@@ -126,29 +125,15 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
             foregroundColor: Colors.white,
             actions: [
               IconButton(
-                icon: const Icon(Icons.palette_outlined),
-                tooltip: 'Customize Layout & Alignments',
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  final currentTmpl = DocumentTemplateService.instance.getTemplate('invoice');
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => LivePdfTemplateDesignerScreen(
-                        initialTemplate: currentTmpl,
-                        templateKey: 'invoice',
-                        invoice: _invoice,
-                        onTemplateSaved: (tmpl) {
-                          setState(() {});
-                        },
-                      ),
-                    ),
-                  );
-                },
-              ),
-              IconButton(
                 icon: const Icon(Icons.share_rounded),
                 onPressed: () => Printing.sharePdf(bytes: pdfBytes, filename: fileName),
+              ),
+              IconButton(
+                icon: const Icon(Icons.print_rounded),
+                onPressed: () => Printing.layoutPdf(
+                  onLayout: (format) async => pdfBytes,
+                  name: fileName,
+                ),
               ),
               IconButton(
                 icon: const Icon(Icons.close_rounded),
@@ -172,7 +157,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Delete Invoice?'),
+        title: const Text('Delete Document?'),
         content: Text('Are you sure you want to delete ${_invoice.invoiceNumber}?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
@@ -192,7 +177,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
       if (mounted) {
         Navigator.pop(context, true);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invoice deleted')),
+          const SnackBar(content: Text('Document deleted successfully')),
         );
       }
     } catch (e) {
@@ -206,8 +191,8 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final df = DateFormat('yyyy-MM-dd');
     final isPaid = _invoice.isPaid;
+    final totalWords = CurrencyWordsConverter.toBahrainiDinarsWords(_invoice.totalAmount);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -219,12 +204,12 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.edit_outlined),
-            tooltip: 'Edit Invoice',
+            tooltip: 'Edit Document',
             onPressed: () async {
               final updated = await Navigator.push<bool>(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => CreateEditInvoiceScreen(invoiceToEdit: _invoice),
+                  builder: (context) => B2bDocumentFormScreen(invoiceToEdit: _invoice),
                 ),
               );
               if (updated == true) {
@@ -239,9 +224,21 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                 _deleteInvoice();
               } else if (val == 'share') {
                 _handlePdfAction(share: true);
+              } else if (val == 'print') {
+                _handlePdfAction(share: false);
               }
             },
             itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'print',
+                child: Row(
+                  children: [
+                    Icon(Icons.print_outlined, size: 18, color: Color(0xFF0A2540)),
+                    SizedBox(width: 8),
+                    Text('Print Document'),
+                  ],
+                ),
+              ),
               const PopupMenuItem(
                 value: 'share',
                 child: Row(
@@ -252,13 +249,14 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                   ],
                 ),
               ),
+              const PopupMenuDivider(),
               const PopupMenuItem(
                 value: 'delete',
                 child: Row(
                   children: [
                     Icon(Icons.delete_outline, size: 18, color: Colors.red),
                     SizedBox(width: 8),
-                    Text('Delete Invoice', style: TextStyle(color: Colors.red)),
+                    Text('Delete Document', style: TextStyle(color: Colors.red)),
                   ],
                 ),
               ),
@@ -292,7 +290,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        isPaid ? 'INVOICE IS PAID' : 'PAYMENT PENDING',
+                        isPaid ? 'DOCUMENT IS SETTLED' : 'STATUS: PENDING',
                         style: TextStyle(
                           color: isPaid ? const Color(0xFF137333) : const Color(0xFFD93025),
                           fontWeight: FontWeight.bold,
@@ -303,7 +301,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                       Text(
                         isPaid
                             ? 'Marked as received & settled'
-                            : 'Awaiting customer disbursement',
+                            : 'Active document awaiting payment/approval',
                         style: TextStyle(
                           color: isPaid ? const Color(0xFF137333).withValues(alpha: 0.8) : const Color(0xFFD93025).withValues(alpha: 0.8),
                           fontSize: 12,
@@ -334,9 +332,9 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
 
           const SizedBox(height: 16),
 
-          // Bill Format Preview Card
+          // Official Al Nadheera Document Card (Matching Image 1)
           Card(
-            elevation: 0,
+            elevation: 2,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
               side: const BorderSide(color: Color(0xFFE2E8F0)),
@@ -347,230 +345,262 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Company Branding Bar
+                  // 1. Bilingual Al Nadheera Header
+                  Center(
+                    child: Column(
+                      children: [
+                        Image.asset(
+                          'assets/images/al_nadheera_emblem.png',
+                          height: 52,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.business_rounded, size: 40, color: Color(0xFFC51A1B)),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'AL NADHEERA CONTRACTING CO. W.L.L',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.8,
+                            color: Color(0xFFC51A1B),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        const Text(
+                          'شركة النضيرة للمقاولات ذ.م.م',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+                  const Divider(color: Colors.black26),
+                  const SizedBox(height: 6),
+
+                  // 2. Quotation Number & Date Row
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Quotation No: ${_invoice.invoiceNumber}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black),
+                      ),
+                      Text(
+                        'Date: ${_dateFormat.format(_invoice.date)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // 3. Recipient "To:" Block
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      const Text(
+                        'To:',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _invoice.customerName,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.black),
+                      ),
+                      if (_invoice.customerAddress != null && _invoice.customerAddress!.isNotEmpty)
+                        Text(
+                          _invoice.customerAddress!,
+                          style: const TextStyle(fontSize: 12, color: Colors.black87),
+                        ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // 4. Underlined Subject Line
+                  Container(
+                    width: double.infinity,
+                    decoration: const BoxDecoration(
+                      border: Border(bottom: BorderSide(color: Colors.black, width: 1.2)),
+                    ),
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: Text(
+                      'SUBJECT: ${(_invoice.subject != null && _invoice.subject!.isNotEmpty) ? _invoice.subject : (_invoice.description ?? "REVISED QUOTATION").toUpperCase()}',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  // 5. Salutation & Intent Letter
+                  Text(
+                    _invoice.salutation ?? 'Respected Sir,',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _invoice.introText ??
+                        'We with kind esteem would like to inform you that we confirm our committed intention to engage in your Project and fulfill all related works accordingly.',
+                    style: const TextStyle(fontSize: 11.5, color: Colors.black87, height: 1.35),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  // 6. Centered Project Sub-Header
+                  Center(
+                    child: Text(
+                      (_invoice.tableHeaderTitle != null && _invoice.tableHeaderTitle!.isNotEmpty)
+                          ? _invoice.tableHeaderTitle!.toUpperCase()
+                          : (_invoice.description ?? 'STORM WATER HIGHWAY 96').toUpperCase(),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12.5,
+                        color: Colors.black,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 10),
+
+                  // 7. Exact 3-Column BOQ Items Table (CLASS, Description, Total Amount)
+                  Table(
+                    border: TableBorder.all(color: Colors.black, width: 1),
+                    columnWidths: const {
+                      0: FixedColumnWidth(60), // CLASS
+                      1: FlexColumnWidth(5),   // Description
+                      2: FixedColumnWidth(110), // Total Amount
+                    },
+                    children: [
+                      // Header Row
+                      const TableRow(
+                        decoration: BoxDecoration(color: Color(0xFFF8FAFC)),
                         children: [
-                          Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0A2540),
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Center(
-                              child: Text('AN', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20)),
-                            ),
+                          Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                            child: Text('CLASS', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                           ),
-                          const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: const [
-                              Text(
-                                'AL NADHEERA',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0A2540), letterSpacing: 0.8),
-                              ),
-                              Text(
-                                'CONTRACTING W.L.L',
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
-                              ),
-                            ],
+                          Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                            child: Text('Description', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                          ),
+                          Padding(
+                            padding: EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                            child: Text('Total Amount', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                           ),
                         ],
                       ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
+                      // Item Rows
+                      for (final item in _invoice.items)
+                        TableRow(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                              child: Text(item.itemClass ?? '', textAlign: TextAlign.center, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                              child: Text(item.itemDescription, style: const TextStyle(fontSize: 11)),
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                              child: Text(_currFormat.format(item.amount), textAlign: TextAlign.right, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                            ),
+                          ],
+                        ),
+                      // Summary Rows
+                      TableRow(
                         children: [
-                          const Text('TAX INVOICE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0A2540))),
-                          Text(_invoice.invoiceNumber, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0B5ED7))),
+                          const SizedBox(),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                            child: Text('Total', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                            child: Text(_currFormat.format(_invoice.subtotal), textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                          ),
+                        ],
+                      ),
+                      TableRow(
+                        children: [
+                          const SizedBox(),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                            child: Text('VAT ${_invoice.vatRate > 0 ? "${_invoice.vatRate.toStringAsFixed(0)}%" : "10%"}', textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+                            child: Text(_currFormat.format(_invoice.vatAmount), textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                          ),
+                        ],
+                      ),
+                      TableRow(
+                        decoration: const BoxDecoration(color: Color(0xFFF1F5F9)),
+                        children: [
+                          const SizedBox(),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 7, horizontal: 8),
+                            child: Text('Total Amount of Work', textAlign: TextAlign.right, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5)),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 8),
+                            child: Text(_currFormat.format(_invoice.totalAmount), textAlign: TextAlign.right, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11.5, color: Color(0xFF0A2540))),
+                          ),
                         ],
                       ),
                     ],
                   ),
 
-                  const SizedBox(height: 16),
-                  const Divider(color: Color(0xFFE2E8F0)),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 14),
 
-                  // Bill To Details
+                  // 8. Amount in Words
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: Text(
+                      'Our total price shall be BHD ${_currFormat.format(_invoice.totalAmount)} ($totalWords)',
+                      style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic, fontWeight: FontWeight.w600, color: Colors.black87),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+                  const Divider(color: Colors.black26),
+
+                  // 9. Company Footer Details
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('BILL TO:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF64748B))),
-                            const SizedBox(height: 4),
-                            Text(_invoice.customerName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0A2540))),
-                            if (_invoice.customerPhone != null)
-                              Text('Tel: ${_invoice.customerPhone}', style: const TextStyle(fontSize: 12, color: Color(0xFF475569))),
-                            if (_invoice.customerAddress != null)
-                              Text(_invoice.customerAddress!, style: const TextStyle(fontSize: 12, color: Color(0xFF475569))),
-                            if (_invoice.customerVatNumber != null)
-                              Text('VAT: ${_invoice.customerVatNumber}', style: const TextStyle(fontSize: 12, color: Color(0xFF475569))),
-                            if (_invoice.siteName != null) ...[
-                              const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.blue[50],
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text('Site: ${_invoice.siteName}', style: const TextStyle(fontSize: 11, color: Color(0xFF0B5ED7), fontWeight: FontWeight.bold)),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          _buildMetaRow('Date:', df.format(_invoice.date)),
-                          if (_invoice.dueDate != null) _buildMetaRow('Due Date:', df.format(_invoice.dueDate!)),
-                          _buildMetaRow('Currency:', 'BHD'),
-                        ],
-                      ),
-                    ],
-                  ),
-
-                  if (_invoice.description != null && _invoice.description!.isNotEmpty) ...[
-                    const SizedBox(height: 14),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text('Description: ${_invoice.description}', style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
-                    ),
-                  ],
-
-                  const SizedBox(height: 16),
-
-                  // Line Items Table
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Column(
-                      children: [
-                        // Header
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF0A2540),
-                            borderRadius: BorderRadius.vertical(top: Radius.circular(7)),
-                          ),
-                          child: const Row(
-                            children: [
-                              SizedBox(width: 24, child: Text('#', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11))),
-                              Expanded(flex: 5, child: Text('Item / Description', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11))),
-                              SizedBox(width: 40, child: Text('Qty', textAlign: TextAlign.center, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11))),
-                              SizedBox(width: 80, child: Text('Rate', textAlign: TextAlign.right, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11))),
-                              SizedBox(width: 85, child: Text('Total', textAlign: TextAlign.right, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11))),
-                            ],
-                          ),
-                        ),
-                        // Items
-                        for (int i = 0; i < _invoice.items.length; i++) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                            color: i % 2 == 0 ? Colors.white : const Color(0xFFF8FAFC),
-                            child: Row(
-                              children: [
-                                SizedBox(width: 24, child: Text('${i + 1}', style: const TextStyle(fontSize: 12, color: Colors.grey))),
-                                Expanded(flex: 5, child: Text(_invoice.items[i].itemDescription, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
-                                SizedBox(
-                                  width: 40,
-                                  child: Text(
-                                    _invoice.items[i].quantity % 1 == 0
-                                        ? _invoice.items[i].quantity.toInt().toString()
-                                        : _invoice.items[i].quantity.toStringAsFixed(2),
-                                    textAlign: TextAlign.center,
-                                    style: const TextStyle(fontSize: 12),
-                                  ),
-                                ),
-                                SizedBox(width: 80, child: Text(currencyFormat.format(_invoice.items[i].unitPrice), textAlign: TextAlign.right, style: const TextStyle(fontSize: 12))),
-                                SizedBox(width: 85, child: Text(currencyFormat.format(_invoice.items[i].amount), textAlign: TextAlign.right, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                              ],
-                            ),
-                          ),
-                          if (i < _invoice.items.length - 1)
-                            const Divider(height: 1, color: Color(0xFFE2E8F0)),
-                        ],
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Financial Totals
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      SizedBox(
-                        width: 240,
-                        child: Column(
-                          children: [
-                            _buildSummaryLine('Subtotal', currencyFormat.format(_invoice.subtotal)),
-                            if (_invoice.discount > 0)
-                              _buildSummaryLine('Discount', '- ${currencyFormat.format(_invoice.discount)}', color: Colors.red),
-                            if (_invoice.vatAmount > 0)
-                              _buildSummaryLine('VAT', '+ ${currencyFormat.format(_invoice.vatAmount)}', color: Colors.green[800]),
-                            const Divider(color: Color(0xFF0A2540), thickness: 1),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text('Total Due:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                                Text(
-                                  currencyFormat.format(_invoice.totalAmount),
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0A2540)),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 20),
-                  const Divider(color: Color(0xFFE2E8F0)),
-                  const SizedBox(height: 12),
-
-                  // Official Seal & Signatory Preview
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Seal preview
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          border: Border.all(color: const Color(0xFF0A2540), width: 1.5),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Column(
                           children: const [
-                            Text('AL NADHEERA', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF0A2540))),
-                            Text('OFFICIAL SEAL', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF0A2540))),
-                            Text('KINGDOM OF BAHRAIN', style: TextStyle(fontSize: 7, color: Color(0xFF0A2540))),
+                            Text('Office: +973 77900685 • Mobile: +973 33880685', style: TextStyle(fontSize: 9.5, color: Colors.black87)),
+                            Text('WhatsApp: +973 33667136 • Email: anccwll@gmail.com', style: TextStyle(fontSize: 9.5, color: Colors.black87)),
+                            Text('Riffa / Al Hajiyat, Kingdom of Bahrain • www.alnadheera.com', style: TextStyle(fontSize: 9.5, color: Colors.black87)),
                           ],
                         ),
                       ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: const [
-                          Text('_____________________________', style: TextStyle(color: Colors.grey)),
-                          SizedBox(height: 4),
-                          Text('Authorized Signature', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF0A2540))),
-                          Text('Al Nadheera Contracting W.L.L', style: TextStyle(fontSize: 10, color: Colors.grey)),
-                        ],
+                      Container(
+                        width: 6,
+                        height: 38,
+                        color: const Color(0xFF7B0D14),
                       ),
                     ],
                   ),
@@ -581,65 +611,62 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
 
           const SizedBox(height: 20),
 
-          // Print & Share PDF Buttons
+          // Primary Actions: Print Official PDF, Share, Edit
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0A2540),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: _isGeneratingPdf ? null : () => _handlePdfAction(share: false),
+              icon: _isGeneratingPdf
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : const Icon(Icons.print_rounded),
+              label: const Text('Print Official Document', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+            ),
+          ),
+          const SizedBox(height: 10),
           Row(
             children: [
               Expanded(
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0A2540),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF0A2540),
+                    side: const BorderSide(color: Color(0xFF0A2540)),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
-                  onPressed: _isGeneratingPdf ? null : () => _handlePdfAction(share: false),
-                  icon: _isGeneratingPdf
-                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                      : const Icon(Icons.print_rounded),
-                  label: const Text('Print / PDF Bill', style: TextStyle(fontWeight: FontWeight.bold)),
+                  onPressed: _isGeneratingPdf ? null : () => _handlePdfAction(share: true),
+                  icon: const Icon(Icons.share_rounded, size: 18),
+                  label: const Text('Share PDF'),
                 ),
               ),
-              const SizedBox(width: 12),
-              OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: const Color(0xFF0A2540),
-                  side: const BorderSide(color: Color(0xFF0A2540)),
-                  padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFFC51A1B),
+                    side: const BorderSide(color: Color(0xFFC51A1B)),
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () async {
+                    final updated = await Navigator.push<bool>(
+                      context,
+                      MaterialPageRoute(builder: (context) => B2bDocumentFormScreen(invoiceToEdit: _invoice)),
+                    );
+                    if (updated == true) _refreshInvoiceDetails();
+                  },
+                  icon: const Icon(Icons.edit_outlined, size: 18, color: Color(0xFFC51A1B)),
+                  label: const Text('Edit Document'),
                 ),
-                onPressed: _isGeneratingPdf ? null : () => _handlePdfAction(share: true),
-                icon: const Icon(Icons.share_rounded),
-                label: const Text('Share'),
               ),
             ],
           ),
           const SizedBox(height: 30),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMetaRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 1),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('$label ', style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-          Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0A2540))),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSummaryLine(String label, String value, {Color? color}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(label, style: const TextStyle(fontSize: 12, color: Color(0xFF64748B))),
-          Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color ?? const Color(0xFF0A2540))),
         ],
       ),
     );

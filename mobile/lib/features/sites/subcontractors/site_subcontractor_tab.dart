@@ -5,7 +5,8 @@ import '../../../models/financial_models.dart';
 
 class SiteSubcontractorTab extends StatefulWidget {
   final String siteId;
-  const SiteSubcontractorTab({super.key, required this.siteId});
+  final VoidCallback? onDataChanged;
+  const SiteSubcontractorTab({super.key, required this.siteId, this.onDataChanged});
 
   @override
   State<SiteSubcontractorTab> createState() => _SiteSubcontractorTabState();
@@ -181,6 +182,7 @@ class _SiteSubcontractorTabState extends State<SiteSubcontractorTab> {
                       try {
                         await _apiService.createSubcontractor(widget.siteId, data);
                         _loadSubcontractors();
+                        widget.onDataChanged?.call();
                         messenger.showSnackBar(const SnackBar(content: Text('Subcontractor entry added')));
                       } catch (e) {
                         messenger.showSnackBar(SnackBar(content: Text('Error: $e')));

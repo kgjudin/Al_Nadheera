@@ -5,7 +5,8 @@ import '../../../models/financial_models.dart';
 
 class SiteAdditionalExpenseTab extends StatefulWidget {
   final String siteId;
-  const SiteAdditionalExpenseTab({super.key, required this.siteId});
+  final VoidCallback? onDataChanged;
+  const SiteAdditionalExpenseTab({super.key, required this.siteId, this.onDataChanged});
 
   @override
   State<SiteAdditionalExpenseTab> createState() => _SiteAdditionalExpenseTabState();
@@ -85,6 +86,7 @@ class _SiteAdditionalExpenseTabState extends State<SiteAdditionalExpenseTab> {
                   try {
                     await _apiService.createAdditionalExpense(widget.siteId, data);
                     _loadExpenses();
+                    widget.onDataChanged?.call();
                   } catch (e) {
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
@@ -186,7 +188,7 @@ class _SiteAdditionalExpenseTabState extends State<SiteAdditionalExpenseTab> {
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    _buildFilterPill('All (${list.length > 0 ? list.length : 3})', _selectedFilter == 'All', () => setState(() => _selectedFilter = 'All')),
+                    _buildFilterPill('All (${list.isNotEmpty ? list.length : 3})', _selectedFilter == 'All', () => setState(() => _selectedFilter = 'All')),
                     const SizedBox(width: 8),
                     _buildFilterPill('Permits & Fees', _selectedFilter == 'Permits', () => setState(() => _selectedFilter = 'Permits')),
                     const SizedBox(width: 8),

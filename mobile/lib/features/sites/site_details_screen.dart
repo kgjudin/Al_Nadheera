@@ -119,6 +119,7 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
         builder: (refreshCount) => SiteSubcontractorTab(
           key: ValueKey('subcontractors_$refreshCount'),
           siteId: widget.siteId,
+          onDataChanged: _loadSite,
         ),
       ),
       _SiteTabDefinition(
@@ -128,6 +129,7 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
         builder: (refreshCount) => SiteAdditionalExpenseTab(
           key: ValueKey('additional_$refreshCount'),
           siteId: widget.siteId,
+          onDataChanged: _loadSite,
         ),
       ),
       _SiteTabDefinition(
@@ -206,15 +208,42 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
     });
 
     try {
-      final summaries = await _supabase.from('site_summary').select('received_amount, cash_expenses').eq('site_id', widget.siteId);
+      final results = await Future.wait([
+        _supabase.from('site_summary').select('received_amount, cash_expenses').eq('site_id', widget.siteId),
+        _supabase.from('labour_costs').select('amount').eq('site_id', widget.siteId),
+        _supabase.from('material_costs').select('invoice_amount, vat_amount').eq('site_id', widget.siteId),
+        _supabase.from('subcontractors').select('invoice_amount, vat_amount').eq('site_id', widget.siteId),
+        _supabase.from('additional_expenses').select('amount').eq('site_id', widget.siteId),
+      ]);
 
       double receivedSum = 0.0;
-      double spentSum = 0.0;
-
-      for (var s in (summaries as List)) {
+      double summarySpent = 0.0;
+      for (var s in (results[0] as List)) {
         receivedSum += _toDouble(s['received_amount']);
-        spentSum += _toDouble(s['cash_expenses']);
+        summarySpent += _toDouble(s['cash_expenses']);
       }
+
+      double labourSpent = 0.0;
+      for (var l in (results[1] as List)) {
+        labourSpent += _toDouble(l['amount']);
+      }
+
+      double materialSpent = 0.0;
+      for (var m in (results[2] as List)) {
+        materialSpent += _toDouble(m['invoice_amount']) + _toDouble(m['vat_amount']);
+      }
+
+      double subcontractorSpent = 0.0;
+      for (var sc in (results[3] as List)) {
+        subcontractorSpent += _toDouble(sc['invoice_amount']) + _toDouble(sc['vat_amount']);
+      }
+
+      double additionalSpent = 0.0;
+      for (var a in (results[4] as List)) {
+        additionalSpent += _toDouble(a['amount']);
+      }
+
+      final totalSpent = summarySpent + labourSpent + materialSpent + subcontractorSpent + additionalSpent;
 
       return Site(
         id: baseSite.id,
@@ -225,14 +254,127 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
         startDate: baseSite.startDate,
         status: baseSite.status,
         assignedBudget: baseSite.assignedBudget,
-        spent: spentSum,
-        receivedSummary: receivedSum,
+        spent: totalSpent,
+        receivedSummary: receivedSum > 0 ? receivedSum : baseSite.receivedSummary,
+        summarySpent: summarySpent,
+        labourSpent: labourSpent,
+        materialSpent: materialSpent,
+        subcontractorSpent: subcontractorSpent,
+        additionalSpent: additionalSpent,
         createdAt: baseSite.createdAt,
         updatedAt: baseSite.updatedAt,
       );
     } catch (_) {
       return baseSite;
     }
+  }
+
+  void _showSpendBreakdownDialog(BuildContext context, Site site) {
+    final currencyFormat = NumberFormat.currency(symbol: 'BHD ', decimalDigits: 2);
+    final items = [
+      {'title': 'Summary (Expenses)', 'amount': site.summarySpent, 'icon': Icons.table_chart_outlined, 'color': const Color(0xFF0B5ED7)},
+      {'title': 'Labour Costs', 'amount': site.labourSpent, 'icon': Icons.engineering_outlined, 'color': const Color(0xFFD97706)},
+      {'title': 'Material Costs', 'amount': site.materialSpent, 'icon': Icons.inventory_outlined, 'color': const Color(0xFF10B981)},
+      {'title': 'Sub-Contractors', 'amount': site.subcontractorSpent, 'icon': Icons.handshake_outlined, 'color': const Color(0xFF8B5CF6)},
+      {'title': 'Additional Expenses', 'amount': site.additionalSpent, 'icon': Icons.receipt_long_outlined, 'color': const Color(0xFFEC4899)},
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Total Spend Breakdown',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0A2540)),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.shade200),
+                    ),
+                    child: Text(
+                      currencyFormat.format(site.spent),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.deepOrange),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Combined expenditure from all 5 site modules:',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              ...items.map((item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF8FAFC),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(7),
+                            decoration: BoxDecoration(
+                              color: (item['color'] as Color).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(item['icon'] as IconData, size: 16, color: item['color'] as Color),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              item['title'] as String,
+                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF0A2540)),
+                            ),
+                          ),
+                          Text(
+                            currencyFormat.format(item['amount'] as double),
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0A2540)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )),
+              const Divider(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Total Aggregated Spend', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF0A2540))),
+                  Text(
+                    currencyFormat.format(site.spent),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0B5ED7)),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -454,16 +596,30 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
                                   ),
                                 ],
                               ),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  const Text('Total Spend', style: TextStyle(color: Colors.white70, fontSize: 10.5)),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    currencyFormat.format(site?.spent ?? 0),
-                                    style: const TextStyle(color: Colors.orangeAccent, fontSize: 14, fontWeight: FontWeight.bold),
+                              InkWell(
+                                borderRadius: BorderRadius.circular(8),
+                                onTap: site == null ? null : () => _showSpendBreakdownDialog(context, site),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: const [
+                                          Text('Total Spend', style: TextStyle(color: Colors.white70, fontSize: 10.5)),
+                                          SizedBox(width: 3),
+                                          Icon(Icons.info_outline, size: 10, color: Colors.white60),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        currencyFormat.format(site?.spent ?? 0),
+                                        style: const TextStyle(color: Colors.orangeAccent, fontSize: 14, fontWeight: FontWeight.bold),
+                                      ),
+                                    ],
                                   ),
-                                ],
+                                ),
                               ),
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.end,

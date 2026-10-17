@@ -59,6 +59,8 @@ class IncomeSection {
   final double amount;
   final String? notes;
   final DateTime? createdAt;
+  final String? bankId;
+  final String? bankName;
   final List<IncomeExpense> expenses;
 
   IncomeSection({
@@ -68,6 +70,8 @@ class IncomeSection {
     required this.amount,
     this.notes,
     this.createdAt,
+    this.bankId,
+    this.bankName,
     this.expenses = const [],
   });
 
@@ -79,6 +83,8 @@ class IncomeSection {
       amount: _toDouble(json['amount']),
       notes: json['notes'],
       createdAt: json['created_at'] != null ? DateTime.tryParse(json['created_at']) : null,
+      bankId: json['bank_id']?.toString(),
+      bankName: json['bank_name']?.toString(),
       expenses: expensesList ?? [],
     );
   }
@@ -90,6 +96,8 @@ class IncomeSection {
       'date': date.toIso8601String().split('T').first,
       'amount': amount,
       'notes': notes,
+      'bank_id': bankId,
+      'bank_name': bankName,
     };
   }
 

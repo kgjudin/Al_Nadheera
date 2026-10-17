@@ -54,6 +54,10 @@ exports.getDashboardMetrics = async (req, res) => {
     };
 
     (summaries || []).forEach(s => addSiteSpent(s.site_id, s.cash_expenses));
+    (labours || []).forEach(l => addSiteSpent(l.site_id, l.amount));
+    (materials || []).forEach(m => addSiteSpent(m.site_id, Number(m.invoice_amount || 0) + Number(m.vat_amount || 0)));
+    (subcontracts || []).forEach(sc => addSiteSpent(sc.site_id, Number(sc.invoice_amount || 0) + Number(sc.vat_amount || 0)));
+    (additionals || []).forEach(a => addSiteSpent(a.site_id, a.amount));
 
     const enrichedSites = sites.map(site => ({
       ...site,

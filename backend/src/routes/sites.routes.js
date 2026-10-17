@@ -10,6 +10,9 @@ router.delete('/:id', sitesController.deleteSite);
 
 const fin = require('../controllers/site_financials.controller');
 
+// Upload attachment
+router.post('/upload', fin.uploadFile);
+
 // Summary
 router.get('/:siteId/summary', fin.getSummary);
 router.post('/:siteId/summary', fin.createSummary);
@@ -49,6 +52,8 @@ router.delete('/budget/:id', fin.deleteBudget);
 const tasksController = require('../controllers/tasks.controller');
 
 // Tasks
+router.put('/tasks/bulk-update', tasksController.bulkUpdateTasks);
+router.delete('/tasks/bulk-delete', tasksController.bulkDeleteTasks);
 router.get('/:siteId/tasks', tasksController.getTasksBySite);
 router.post('/:siteId/tasks', tasksController.createTask);
 router.put('/tasks/:id', tasksController.updateTask);

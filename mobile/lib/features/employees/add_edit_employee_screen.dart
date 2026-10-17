@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 import '../../services/api_service.dart';
 import '../../services/permission_service.dart';
 import '../../models/employee_model.dart';
@@ -26,6 +29,9 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
   late TextEditingController _phoneController;
   late TextEditingController _emailController;
   
+  String? _profileImageUrl;
+  bool _isUploadingPhoto = false;
+
   List<AppRole> _availableRoles = [];
   String? _selectedRoleId;
   String _selectedRoleName = 'Employee';
@@ -45,6 +51,7 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
     _empIdController = TextEditingController(text: widget.employee?.employeeId ?? '');
     _phoneController = TextEditingController(text: widget.employee?.phone ?? '');
     _emailController = TextEditingController(text: widget.employee?.email ?? '');
+    _profileImageUrl = widget.employee?.profileImageUrl;
     
     _joiningDate = widget.employee?.joiningDate;
     _assignedSiteId = widget.employee?.assignedSiteId;
@@ -131,6 +138,129 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
     super.dispose();
   }
 
+  Future<void> _pickAndUploadPhoto(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+      if (pickedFile == null) return;
+
+      setState(() => _isUploadingPhoto = true);
+
+      final bytes = await pickedFile.readAsBytes();
+      final fileExt = pickedFile.name.split('.').last.toLowerCase();
+      final mimeType = fileExt == 'png'
+          ? 'image/png'
+          : (fileExt == 'webp' ? 'image/webp' : 'image/jpeg');
+      final fileName = 'emp_${const Uuid().v4()}.$fileExt';
+      final filePath = 'avatars/$fileName';
+
+      final supabase = Supabase.instance.client;
+      await supabase.storage.from('profile-images').uploadBinary(
+            filePath,
+            bytes,
+            fileOptions: FileOptions(
+              cacheControl: '3600',
+              upsert: true,
+              contentType: mimeType,
+            ),
+          );
+
+      final publicUrl = supabase.storage.from('profile-images').getPublicUrl(filePath);
+
+      if (mounted) {
+        setState(() {
+          _profileImageUrl = publicUrl;
+          _isUploadingPhoto = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Photo uploaded successfully!'),
+            backgroundColor: Color(0xFF0F766E),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isUploadingPhoto = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to upload photo: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showImageSourceDialog() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Select Profile Photo',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const Icon(Icons.camera_alt_outlined, color: Color(0xFF0F766E)),
+                title: const Text('Take Photo with Camera'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndUploadPhoto(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined, color: Color(0xFF0F766E)),
+                title: const Text('Choose from Gallery'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickAndUploadPhoto(ImageSource.gallery);
+                },
+              ),
+              if (_profileImageUrl != null && _profileImageUrl!.isNotEmpty)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline, color: Colors.red),
+                  title: const Text('Remove Photo', style: TextStyle(color: Colors.red)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    setState(() => _profileImageUrl = null);
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAvatarFallback() {
+    final name = _nameController.text.trim();
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : 'E';
+    return Center(
+      child: Text(
+        initial,
+        style: const TextStyle(
+          fontSize: 36,
+          fontWeight: FontWeight.bold,
+          color: Color(0xFF0F766E),
+        ),
+      ),
+    );
+  }
+
   Future<void> _saveEmployee() async {
     if (!_formKey.currentState!.validate()) return;
     
@@ -147,6 +277,7 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
         'joining_date': _joiningDate?.toIso8601String(),
         'status': _status,
         'assigned_site_id': _assignedSiteId,
+        'profile_image_url': _profileImageUrl,
       };
 
       if (widget.employee == null) {
@@ -355,6 +486,71 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Profile Photo Section
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 24.0, top: 8.0),
+                      child: Stack(
+                        children: [
+                          Container(
+                            width: 100,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: const Color(0xFF0F766E).withValues(alpha: 0.3),
+                                width: 3,
+                              ),
+                              color: const Color(0xFF0F766E).withValues(alpha: 0.08),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: _isUploadingPhoto
+                                ? const Center(
+                                    child: SizedBox(
+                                      width: 26,
+                                      height: 26,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0F766E)),
+                                      ),
+                                    ),
+                                  )
+                                : (_profileImageUrl != null && _profileImageUrl!.isNotEmpty)
+                                    ? Image.network(
+                                        _profileImageUrl!,
+                                        fit: BoxFit.cover,
+                                        width: 100,
+                                        height: 100,
+                                        cacheWidth: 300,
+                                        errorBuilder: (_, __, ___) => _buildAvatarFallback(),
+                                      )
+                                    : _buildAvatarFallback(),
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Material(
+                              color: const Color(0xFF0F766E),
+                              shape: const CircleBorder(),
+                              elevation: 3,
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: _isUploadingPhoto ? null : _showImageSourceDialog,
+                                child: const Padding(
+                                  padding: EdgeInsets.all(8),
+                                  child: Icon(
+                                    Icons.camera_alt_rounded,
+                                    size: 18,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                   TextFormField(
                     controller: _nameController,
                     decoration: const InputDecoration(labelText: 'Full Name *', border: OutlineInputBorder()),

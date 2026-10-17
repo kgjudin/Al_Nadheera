@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/api_service.dart';
 import '../../models/site_model.dart';
 import 'add_edit_site_screen.dart';
@@ -24,10 +25,110 @@ class _SiteListScreenState extends State<SiteListScreen> {
     _loadSites();
   }
 
+  double _toDouble(dynamic val) {
+    if (val == null) return 0.0;
+    if (val is num) return val.toDouble();
+    if (val is String) return double.tryParse(val) ?? 0.0;
+    return 0.0;
+  }
+
   void _loadSites() {
     setState(() {
-      _sitesFuture = _apiService.getSites();
+      _sitesFuture = _fetchLiveSites();
     });
+  }
+
+  Future<List<Site>> _fetchLiveSites() async {
+    List<Site> baseSites = [];
+    try {
+      baseSites = await _apiService.getSites();
+    } catch (_) {
+      try {
+        final supabase = Supabase.instance.client;
+        final data = await supabase.from('sites').select('*').order('created_at', ascending: false);
+        baseSites = (data as List).map((json) => Site.fromJson(json)).toList();
+      } catch (_) {
+        baseSites = [];
+      }
+    }
+
+    try {
+      final supabase = Supabase.instance.client;
+      final results = await Future.wait([
+        supabase.from('site_summary').select('site_id, received_amount, cash_expenses'),
+        supabase.from('labour_costs').select('site_id, amount'),
+        supabase.from('material_costs').select('site_id, invoice_amount, vat_amount'),
+        supabase.from('subcontractors').select('site_id, invoice_amount, vat_amount'),
+        supabase.from('additional_expenses').select('site_id, amount'),
+      ]);
+
+      final summaries = results[0] as List;
+      final labours = results[1] as List;
+      final materials = results[2] as List;
+      final subcontracts = results[3] as List;
+      final additionals = results[4] as List;
+
+      final Map<String, double> siteReceived = {};
+      final Map<String, double> siteSummarySpent = {};
+      final Map<String, double> siteLabourSpent = {};
+      final Map<String, double> siteMaterialSpent = {};
+      final Map<String, double> siteSubcontractorSpent = {};
+      final Map<String, double> siteAdditionalSpent = {};
+
+      for (var s in summaries) {
+        final sid = s['site_id']?.toString() ?? '';
+        siteReceived[sid] = (siteReceived[sid] ?? 0) + _toDouble(s['received_amount']);
+        siteSummarySpent[sid] = (siteSummarySpent[sid] ?? 0) + _toDouble(s['cash_expenses']);
+      }
+      for (var l in labours) {
+        final sid = l['site_id']?.toString() ?? '';
+        siteLabourSpent[sid] = (siteLabourSpent[sid] ?? 0) + _toDouble(l['amount']);
+      }
+      for (var m in materials) {
+        final sid = m['site_id']?.toString() ?? '';
+        siteMaterialSpent[sid] = (siteMaterialSpent[sid] ?? 0) + _toDouble(m['invoice_amount']) + _toDouble(m['vat_amount']);
+      }
+      for (var sc in subcontracts) {
+        final sid = sc['site_id']?.toString() ?? '';
+        siteSubcontractorSpent[sid] = (siteSubcontractorSpent[sid] ?? 0) + _toDouble(sc['invoice_amount']) + _toDouble(sc['vat_amount']);
+      }
+      for (var a in additionals) {
+        final sid = a['site_id']?.toString() ?? '';
+        siteAdditionalSpent[sid] = (siteAdditionalSpent[sid] ?? 0) + _toDouble(a['amount']);
+      }
+
+      return baseSites.map((s) {
+        final rec = siteReceived.containsKey(s.id) ? siteReceived[s.id]! : s.receivedSummary;
+        final sumSpent = siteSummarySpent[s.id] ?? s.summarySpent;
+        final labSpent = siteLabourSpent[s.id] ?? s.labourSpent;
+        final matSpent = siteMaterialSpent[s.id] ?? s.materialSpent;
+        final subSpent = siteSubcontractorSpent[s.id] ?? s.subcontractorSpent;
+        final addSpent = siteAdditionalSpent[s.id] ?? s.additionalSpent;
+        final totSpent = sumSpent + labSpent + matSpent + subSpent + addSpent;
+
+        return Site(
+          id: s.id,
+          name: s.name,
+          code: s.code,
+          clientName: s.clientName,
+          location: s.location,
+          startDate: s.startDate,
+          status: s.status,
+          assignedBudget: s.assignedBudget,
+          spent: totSpent > 0 ? totSpent : s.spent,
+          receivedSummary: rec > 0 ? rec : s.receivedSummary,
+          summarySpent: sumSpent,
+          labourSpent: labSpent,
+          materialSpent: matSpent,
+          subcontractorSpent: subSpent,
+          additionalSpent: addSpent,
+          createdAt: s.createdAt,
+          updatedAt: s.updatedAt,
+        );
+      }).toList();
+    } catch (_) {
+      return baseSites;
+    }
   }
 
   @override
@@ -157,9 +258,12 @@ class _SiteListScreenState extends State<SiteListScreen> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(site.receivedSummary > 0 ? 'Given' : 'Budget', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                      const Text('Budget', style: TextStyle(fontSize: 11, color: Colors.grey)),
                       const SizedBox(height: 2),
-                      Text(currencyFormat.format(site.effectiveGiven), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blue)),
+                      Text(
+                        currencyFormat.format(site.assignedBudget),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blue),
+                      ),
                     ],
                   ),
                   Column(
@@ -167,7 +271,10 @@ class _SiteListScreenState extends State<SiteListScreen> {
                     children: [
                       const Text('Spent', style: TextStyle(fontSize: 11, color: Colors.grey)),
                       const SizedBox(height: 2),
-                      Text(currencyFormat.format(site.spent), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange)),
+                      Text(
+                        currencyFormat.format(site.spent),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange),
+                      ),
                     ],
                   ),
                   Column(

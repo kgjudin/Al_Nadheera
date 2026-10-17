@@ -10,6 +10,8 @@ class SiteBudgetTransaction {
   final DateTime date;
   final String? createdBy;
   final DateTime createdAt;
+  final String? bankId;
+  final String? bankName;
 
   SiteBudgetTransaction({
     required this.id,
@@ -23,6 +25,8 @@ class SiteBudgetTransaction {
     required this.date,
     this.createdBy,
     required this.createdAt,
+    this.bankId,
+    this.bankName,
   });
 
   factory SiteBudgetTransaction.fromJson(Map<String, dynamic> json) {
@@ -38,6 +42,8 @@ class SiteBudgetTransaction {
       date: json['date'] != null ? DateTime.parse(json['date'].toString()) : DateTime.now(),
       createdBy: json['created_by']?.toString(),
       createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'].toString()) : DateTime.now(),
+      bankId: json['bank_id']?.toString(),
+      bankName: json['bank_name']?.toString(),
     );
   }
 
@@ -52,6 +58,8 @@ class SiteBudgetTransaction {
       'reason': reason,
       'date': date.toIso8601String().split('T').first,
       'created_by': createdBy,
+      'bank_id': bankId,
+      'bank_name': bankName,
     };
   }
 }

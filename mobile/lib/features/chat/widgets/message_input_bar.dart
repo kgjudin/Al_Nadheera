@@ -8,6 +8,7 @@ class MessageInputBar extends StatefulWidget {
   final String? replyMessageText;
   final VoidCallback? onCancelReply;
   final Function(String attachmentType)? onAttachmentSelected;
+  final bool isUploading;
 
   const MessageInputBar({
     super.key,
@@ -17,6 +18,7 @@ class MessageInputBar extends StatefulWidget {
     this.replyMessageText,
     this.onCancelReply,
     this.onAttachmentSelected,
+    this.isUploading = false,
   });
 
   @override
@@ -52,12 +54,19 @@ class _MessageInputBarState extends State<MessageInputBar> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
+      builder: (modalCtx) => Container(
         margin: const EdgeInsets.all(16),
         padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.12),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Wrap(
           spacing: 24,
@@ -65,28 +74,28 @@ class _MessageInputBarState extends State<MessageInputBar> {
           alignment: WrapAlignment.center,
           children: [
             _buildAttachmentOption(
-              context,
+              modalCtx,
               icon: Icons.image_rounded,
               color: Colors.purple,
               label: 'Gallery',
               type: 'gallery',
             ),
             _buildAttachmentOption(
-              context,
+              modalCtx,
               icon: Icons.camera_alt_rounded,
               color: Colors.pink,
               label: 'Camera',
               type: 'camera',
             ),
             _buildAttachmentOption(
-              context,
+              modalCtx,
               icon: Icons.insert_drive_file_rounded,
               color: Colors.indigo,
               label: 'Document',
               type: 'document',
             ),
             _buildAttachmentOption(
-              context,
+              modalCtx,
               icon: Icons.location_on_rounded,
               color: Colors.green,
               label: 'Site Location',
@@ -99,7 +108,7 @@ class _MessageInputBarState extends State<MessageInputBar> {
   }
 
   Widget _buildAttachmentOption(
-    BuildContext context, {
+    BuildContext modalCtx, {
     required IconData icon,
     required Color color,
     required String label,
@@ -107,7 +116,7 @@ class _MessageInputBarState extends State<MessageInputBar> {
   }) {
     return GestureDetector(
       onTap: () {
-        Navigator.pop(context);
+        Navigator.pop(modalCtx);
         if (widget.onAttachmentSelected != null) {
           widget.onAttachmentSelected!(type);
         }
@@ -172,28 +181,31 @@ class _MessageInputBarState extends State<MessageInputBar> {
                         Expanded(
                           child: TextField(
                             controller: widget.controller,
+                            enabled: !widget.isUploading,
                             maxLines: 5,
                             minLines: 1,
                             style: const TextStyle(fontSize: 15),
-                            decoration: const InputDecoration(
-                              hintText: 'Type a message...',
-                              hintStyle: TextStyle(color: Colors.grey, fontSize: 15),
+                            decoration: InputDecoration(
+                              hintText: widget.isUploading ? 'Uploading file...' : 'Type a message...',
+                              hintStyle: const TextStyle(color: Colors.grey, fontSize: 15),
                               border: InputBorder.none,
                               enabledBorder: InputBorder.none,
                               focusedBorder: InputBorder.none,
-                              contentPadding: EdgeInsets.symmetric(vertical: 12),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 12),
                             ),
                             textInputAction: TextInputAction.newline,
                           ),
                         ),
                         IconButton(
                           icon: const Icon(Icons.attach_file_rounded, color: Colors.grey),
-                          onPressed: () => _showAttachmentModal(context),
+                          onPressed: widget.isUploading ? null : () => _showAttachmentModal(context),
                         ),
                         if (!_hasText)
                           IconButton(
                             icon: const Icon(Icons.camera_alt_rounded, color: Colors.grey),
-                            onPressed: () => _showAttachmentModal(context),
+                            onPressed: widget.isUploading
+                                ? null
+                                : () => widget.onAttachmentSelected?.call('camera'),
                           ),
                       ],
                     ),
@@ -206,14 +218,26 @@ class _MessageInputBarState extends State<MessageInputBar> {
                     color: Color(0xFF00A884), // WhatsApp green accent
                     shape: BoxShape.circle,
                   ),
-                  child: IconButton(
-                    icon: Icon(
-                      _hasText ? Icons.send_rounded : Icons.mic_rounded,
-                      color: Colors.white,
-                      size: 22,
-                    ),
-                    onPressed: _hasText ? widget.onSend : () {},
-                  ),
+                  child: widget.isUploading
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          ),
+                        )
+                      : IconButton(
+                          icon: Icon(
+                            _hasText ? Icons.send_rounded : Icons.mic_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                          onPressed: _hasText ? widget.onSend : () {},
+                        ),
                 ),
               ],
             ),

@@ -76,12 +76,14 @@ class SiteBudgetService {
     required String reason,
     required DateTime date,
     String? createdBy,
+    String? bankId,
+    String? bankName,
   }) async {
     final previousBudget = site.assignedBudget;
     final newBudget = previousBudget + amount;
 
     // 1. Log transaction
-    await _supabase.from('site_budget_transactions').insert({
+    final txData = {
       'site_id': site.id,
       'site_name': site.name,
       'transaction_type': 'add',
@@ -91,13 +93,49 @@ class SiteBudgetService {
       'reason': reason,
       'date': date.toIso8601String().split('T').first,
       'created_by': createdBy ?? 'Admin',
-    });
+      'bank_id': bankId,
+      'bank_name': bankName,
+    };
+    await _supabase.from('site_budget_transactions').insert(txData);
 
     // 2. Update site assigned_budget
     await _supabase
         .from('sites')
         .update({'assigned_budget': newBudget})
         .eq('id', site.id);
+
+    // 3. If source capital bank is selected, deduct from bank balance
+    if (bankId != null && bankId.isNotEmpty) {
+      final bankRes = await _supabase
+          .from('capital_banks')
+          .select('balance, bank_name')
+          .eq('id', bankId)
+          .maybeSingle();
+
+      if (bankRes != null) {
+        final currentBal = (bankRes['balance'] as num?)?.toDouble() ?? 0.0;
+        final newBal = currentBal - amount;
+        final resolvedBankName = bankName ?? bankRes['bank_name']?.toString() ?? 'Capital Bank';
+
+        await _supabase.from('capital_banks').update({
+          'balance': newBal,
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('id', bankId);
+
+        await _supabase.from('capital_bank_transactions').insert({
+          'bank_id': bankId,
+          'bank_name': resolvedBankName,
+          'transaction_type': 'site_allocation',
+          'amount': amount,
+          'balance_after': newBal,
+          'reference_title': 'Transferred to Site: ${site.name}',
+          'site_id': site.id,
+          'notes': reason,
+          'date': date.toIso8601String().split('T').first,
+          'created_by': createdBy ?? 'Admin',
+        });
+      }
+    }
   }
 
   /// Reduce money from a site's budget

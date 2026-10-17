@@ -4,9 +4,9 @@ import 'package:printing/printing.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/invoice_model.dart';
 import '../customers/customers_screen.dart';
-import 'create_edit_invoice_screen.dart';
 import 'invoice_detail_screen.dart';
 import 'invoice_pdf_generator.dart';
+import 'b2b_document_form_screen.dart';
 import '../document_templates/document_template_settings_screen.dart';
 
 class InvoicesScreen extends StatefulWidget {
@@ -137,7 +137,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text('Invoices & Billing', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Invoices & Quotations', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF0A2540),
         elevation: 0,
@@ -301,9 +301,16 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
-                        onPressed: _navigateToCreateInvoice,
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const B2bDocumentFormScreen()),
+                          ).then((res) {
+                            if (res == true) _loadInvoices();
+                          });
+                        },
                         icon: const Icon(Icons.add, size: 18),
-                        label: const Text('Create New Invoice'),
+                        label: const Text('Create New Document'),
                       ),
                     ],
                   ),
@@ -319,20 +326,18 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: const Color(0xFF0A2540),
         foregroundColor: Colors.white,
-        onPressed: _navigateToCreateInvoice,
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const B2bDocumentFormScreen()),
+          ).then((res) {
+            if (res == true) _loadInvoices();
+          });
+        },
         icon: const Icon(Icons.add_rounded),
-        label: const Text('New Invoice', style: TextStyle(fontWeight: FontWeight.bold)),
+        label: const Text('New Document', style: TextStyle(fontWeight: FontWeight.bold)),
       ),
     );
-  }
-
-  void _navigateToCreateInvoice() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const CreateEditInvoiceScreen()),
-    ).then((res) {
-      if (res == true) _loadInvoices();
-    });
   }
 
   Widget _buildFilterChip(String label, int count, {Color? activeColor}) {
@@ -601,12 +606,12 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                       ),
                       IconButton(
                         icon: const Icon(Icons.edit_outlined, size: 18, color: Color(0xFF0A2540)),
-                        tooltip: 'Edit Invoice',
+                        tooltip: 'Edit Document',
                         onPressed: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => CreateEditInvoiceScreen(invoiceToEdit: invoice),
+                              builder: (context) => B2bDocumentFormScreen(invoiceToEdit: invoice),
                             ),
                           ).then((res) {
                             if (res == true) _loadInvoices();

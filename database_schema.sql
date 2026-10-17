@@ -55,6 +55,7 @@ CREATE TABLE public.material_costs (
     invoice_amount NUMERIC DEFAULT 0,
     vat_amount NUMERIC DEFAULT 0,
     remarks TEXT,
+    attachments JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -111,6 +112,7 @@ CREATE TABLE public.tasks (
     start_date DATE,
     due_date DATE,
     status TEXT DEFAULT 'Pending',
+    sub_modules JSONB DEFAULT '[]'::jsonb,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -165,9 +167,32 @@ CREATE TABLE public.personal_note_images (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 14. Products Table
+-- 14. Product Classes Table
+CREATE TABLE IF NOT EXISTS public.product_classes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 14.1 Product Sub-Modules Table
+CREATE TABLE IF NOT EXISTS public.product_submodules (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    class_id UUID REFERENCES public.product_classes(id) ON DELETE CASCADE,
+    class_name TEXT NOT NULL,
+    name TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(class_name, name)
+);
+
+-- 14.2 Products Table
 CREATE TABLE IF NOT EXISTS public.products (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    class_id UUID REFERENCES public.product_classes(id) ON DELETE SET NULL,
+    class_name TEXT,
+    submodule_id UUID REFERENCES public.product_submodules(id) ON DELETE SET NULL,
+    submodule_name TEXT,
     name TEXT NOT NULL,
     unit TEXT,
     price NUMERIC DEFAULT 0,
@@ -247,12 +272,15 @@ CREATE POLICY "Users can manage their own note images" ON public.personal_note_i
 INSERT INTO storage.buckets (id, name, public) VALUES ('profile-images', 'profile-images', true) ON CONFLICT DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('chat-media', 'chat-media', true) ON CONFLICT DO NOTHING;
 INSERT INTO storage.buckets (id, name, public) VALUES ('personal-data', 'personal-data', false) ON CONFLICT DO NOTHING;
+INSERT INTO storage.buckets (id, name, public) VALUES ('site-attachments', 'site-attachments', true) ON CONFLICT DO NOTHING;
 
 -- Storage Policies
 CREATE POLICY "Public profile images" ON storage.objects FOR SELECT TO public USING (bucket_id = 'profile-images');
 CREATE POLICY "Auth profile images upload" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'profile-images');
 CREATE POLICY "Auth chat media access" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'chat-media');
 CREATE POLICY "Auth chat media upload" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'chat-media');
+CREATE POLICY "Public site attachments access" ON storage.objects FOR SELECT TO public USING (bucket_id = 'site-attachments');
+CREATE POLICY "Auth site attachments upload" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'site-attachments');
 
 CREATE POLICY "Users own personal data access" ON storage.objects FOR SELECT TO authenticated USING (bucket_id = 'personal-data' AND (auth.uid() = owner));
 CREATE POLICY "Users own personal data upload" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = 'personal-data' AND (auth.uid() = owner));
@@ -326,6 +354,12 @@ CREATE TABLE IF NOT EXISTS public.invoices (
     total_amount NUMERIC NOT NULL DEFAULT 0,
     notes TEXT,
     payment_terms TEXT,
+    document_type TEXT DEFAULT 'B2B',
+    subject TEXT,
+    salutation TEXT,
+    intro_text TEXT,
+    table_header_title TEXT,
+    source_config JSONB,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -334,6 +368,7 @@ CREATE TABLE IF NOT EXISTS public.invoices (
 CREATE TABLE IF NOT EXISTS public.invoice_items (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     invoice_id UUID REFERENCES public.invoices(id) ON DELETE CASCADE,
+    item_class TEXT,
     item_description TEXT NOT NULL,
     quantity NUMERIC NOT NULL DEFAULT 1,
     unit_price NUMERIC NOT NULL DEFAULT 0,
@@ -402,8 +437,77 @@ CREATE TABLE IF NOT EXISTS public.site_budget_transactions (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-ALTER TABLE public.site_budget_transactions ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow authenticated full access to site_budget_transactions" ON public.site_budget_transactions FOR ALL TO authenticated USING (true) WITH CHECK (true);
+-- 20. Capital Banks Table (Capital Budget / Bank Management)
+CREATE TABLE IF NOT EXISTS public.capital_banks (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    bank_name TEXT NOT NULL,
+    account_number TEXT,
+    balance NUMERIC NOT NULL DEFAULT 0,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.capital_banks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow authenticated full access to capital_banks" ON public.capital_banks FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- 21. Capital Bank Transactions Table (Audit trail for bank deposits, withdrawals, site/company budget allocations)
+CREATE TABLE IF NOT EXISTS public.capital_bank_transactions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    bank_id UUID REFERENCES public.capital_banks(id) ON DELETE CASCADE,
+    bank_name TEXT NOT NULL,
+    transaction_type TEXT NOT NULL, -- 'deposit', 'withdrawal', 'site_allocation', 'company_allocation', 'company_return'
+    amount NUMERIC NOT NULL,
+    balance_after NUMERIC NOT NULL DEFAULT 0,
+    reference_title TEXT,
+    site_id UUID REFERENCES public.sites(id) ON DELETE SET NULL,
+    income_section_id UUID REFERENCES public.income_sections(id) ON DELETE SET NULL,
+    notes TEXT,
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    created_by TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 22. IPC Documents Table (Interim Payment Certificates / Client Measurement Bills)
+CREATE TABLE IF NOT EXISTS public.ipc_documents (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    document_number TEXT,
+    project_name TEXT NOT NULL,
+    client_name TEXT,
+    date DATE DEFAULT CURRENT_DATE,
+    status TEXT DEFAULT 'Draft',
+    total_amount NUMERIC DEFAULT 0,
+    items JSONB DEFAULT '[]'::jsonb,
+    notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.ipc_documents ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow authenticated full access to ipc_documents" ON public.ipc_documents FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow anon full access to ipc_documents" ON public.ipc_documents FOR ALL TO anon USING (true) WITH CHECK (true);
+
+-- 22.1 IPC Items Table
+CREATE TABLE IF NOT EXISTS public.ipc_items (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    ipc_id UUID REFERENCES public.ipc_documents(id) ON DELETE CASCADE,
+    item_type TEXT DEFAULT 'item', -- 'heading', 'subheading', 'item'
+    item_number TEXT,
+    description TEXT NOT NULL,
+    unit TEXT,
+    quantity NUMERIC DEFAULT 0,
+    rate NUMERIC DEFAULT 0,
+    amount NUMERIC DEFAULT 0,
+    sort_order INT DEFAULT 0,
+    class_name TEXT,
+    submodule_name TEXT,
+    product_id UUID REFERENCES public.products(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.ipc_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow authenticated full access to ipc_items" ON public.ipc_items FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow anon full access to ipc_items" ON public.ipc_items FOR ALL TO anon USING (true) WITH CHECK (true);
 
 
 

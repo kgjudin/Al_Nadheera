@@ -18,6 +18,7 @@ import '../../features/ai_assistant/widgets/floating_ai_assistant_button.dart';
 import '../../features/invoices/invoices_screen.dart';
 import '../../features/customers/customers_screen.dart';
 import '../../features/document_templates/document_template_settings_screen.dart';
+import '../../features/ipc/ipc_list_screen.dart';
 
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
@@ -292,6 +293,31 @@ class _MainLayoutState extends State<MainLayout> {
                         context,
                         MaterialPageRoute(
                           builder: (context) => const DocumentTemplateSettingsScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                  const Divider(height: 1),
+
+                  // Option: IPC (Interim Payment Certificate / Measurement Bill)
+                  ListTile(
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F766E).withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.request_quote_rounded, color: Color(0xFF0F766E)),
+                    ),
+                    title: const Text('IPC', style: TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: const Text('Client measurement bills, project BOQ quantities & valuations'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () {
+                      Navigator.pop(sheetContext);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const IpcListScreen(),
                         ),
                       );
                     },

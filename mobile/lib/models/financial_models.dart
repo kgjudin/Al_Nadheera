@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 double _toDouble(dynamic val) {
   if (val == null) return 0.0;
   if (val is num) return val.toDouble();
@@ -98,6 +100,36 @@ class LabourCost {
   }
 }
 
+class MaterialAttachment {
+  final String name;
+  final String url;
+  final String type; // 'image', 'pdf', 'excel', 'doc', 'other'
+  final int? size;
+
+  MaterialAttachment({
+    required this.name,
+    required this.url,
+    required this.type,
+    this.size,
+  });
+
+  factory MaterialAttachment.fromJson(Map<String, dynamic> json) {
+    return MaterialAttachment(
+      name: json['name']?.toString() ?? 'Attachment',
+      url: json['url']?.toString() ?? '',
+      type: json['type']?.toString() ?? 'other',
+      size: json['size'] is int ? json['size'] : int.tryParse(json['size']?.toString() ?? ''),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'url': url,
+    'type': type,
+    'size': size,
+  };
+}
+
 class MaterialCost {
   final String id;
   final String siteId;
@@ -107,6 +139,7 @@ class MaterialCost {
   final double invoiceAmount;
   final double vatAmount;
   final String? remarks;
+  final List<MaterialAttachment> attachments;
 
   double get totalAmount => invoiceAmount + vatAmount;
 
@@ -119,9 +152,37 @@ class MaterialCost {
     this.invoiceAmount = 0,
     this.vatAmount = 0,
     this.remarks,
+    this.attachments = const [],
   });
 
   factory MaterialCost.fromJson(Map<String, dynamic> json) {
+    String? parsedRemarks = json['remarks'];
+    List<MaterialAttachment> parsedAttachments = [];
+
+    // Parse attachments list if directly provided
+    if (json['attachments'] is List) {
+      parsedAttachments = (json['attachments'] as List)
+          .map((a) => MaterialAttachment.fromJson(Map<String, dynamic>.from(a)))
+          .toList();
+    }
+
+    // If remarks contains encoded JSON with attachments and note text
+    if (parsedRemarks != null && parsedRemarks.startsWith('{') && parsedRemarks.endsWith('}')) {
+      try {
+        final decoded = jsonDecode(parsedRemarks);
+        if (decoded is Map) {
+          if (decoded['text'] != null || decoded['remarks'] != null) {
+            parsedRemarks = decoded['text']?.toString() ?? decoded['remarks']?.toString();
+          }
+          if (parsedAttachments.isEmpty && decoded['attachments'] is List) {
+            parsedAttachments = (decoded['attachments'] as List)
+                .map((a) => MaterialAttachment.fromJson(Map<String, dynamic>.from(a)))
+                .toList();
+          }
+        }
+      } catch (_) {}
+    }
+
     return MaterialCost(
       id: json['id']?.toString() ?? '',
       siteId: json['site_id']?.toString() ?? '',
@@ -130,7 +191,8 @@ class MaterialCost {
       invoiceNumber: json['invoice_number'],
       invoiceAmount: _toDouble(json['invoice_amount']),
       vatAmount: _toDouble(json['vat_amount']),
-      remarks: json['remarks'],
+      remarks: parsedRemarks,
+      attachments: parsedAttachments,
     );
   }
 }

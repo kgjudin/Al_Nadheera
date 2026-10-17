@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/api_service.dart';
 import '../../services/permission_service.dart';
 import '../../models/dashboard_metrics_model.dart';
 import '../../models/site_model.dart';
+import '../../models/task_model.dart';
 import '../sites/site_list_screen.dart';
 import '../sites/site_details_screen.dart';
+import '../sites/tasks/widgets/task_details_sheet.dart';
 import '../employees/employee_list_screen.dart';
 import '../chat/chat_layout_screen.dart';
 import '../roles/role_management_screen.dart';
@@ -27,6 +30,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   late Future<DashboardMetrics> _metricsFuture;
   List<Map<String, dynamic>> _teamMembers = [];
   List<Site> _recentSites = [];
+  List<TaskModel> _assignedTasks = [];
+  String? _currentEmployeeId;
+  Set<String> _readNotificationIds = {};
 
   String _userName = 'Judin KG';
   String _userRole = 'Super Admin';
@@ -37,6 +43,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _loadUserInfo();
+    _loadReadNotifications();
     _loadData();
   }
 
@@ -45,6 +52,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _metricsFuture = _fetchMetrics();
     });
     _fetchRecentSitesAndTeam();
+    _fetchAssignedTasks();
+    _loadReadNotifications();
   }
 
   Future<void> _loadUserInfo() async {
@@ -54,29 +63,73 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final res = await _supabase
           .from('employees')
-          .select('name, role, profile_image_url')
-          .eq('id', user.id)
+          .select('id, name, role, profile_image_url, email')
+          .or('id.eq.${user.id},email.ilike.${user.email ?? ''}')
           .maybeSingle();
 
       if (mounted) {
         setState(() {
           if (res != null) {
+            _currentEmployeeId = res['id']?.toString() ?? user.id;
             _userName = res['name']?.toString() ?? 'Judin KG';
             _userRole = res['role']?.toString() ?? _permissionService.currentRole;
             _userAvatarUrl = res['profile_image_url']?.toString();
           } else {
+            _currentEmployeeId = user.id;
             _userName = user.userMetadata?['name']?.toString() ?? 'Judin KG';
             _userRole = user.userMetadata?['role']?.toString() ?? _permissionService.currentRole;
             _userAvatarUrl = user.userMetadata?['avatar_url']?.toString();
           }
         });
       }
+      _fetchAssignedTasks();
     } catch (_) {
       if (mounted) {
         setState(() {
           _userRole = _permissionService.currentRole;
         });
       }
+    }
+  }
+
+  Future<void> _fetchAssignedTasks() async {
+    try {
+      final user = _supabase.auth.currentUser;
+      String? empId = _currentEmployeeId;
+      if (empId == null && user != null) {
+        final res = await _supabase
+            .from('employees')
+            .select('id')
+            .or('id.eq.${user.id},email.ilike.${user.email ?? ''}')
+            .maybeSingle();
+        empId = res?['id']?.toString() ?? user.id;
+        _currentEmployeeId = empId;
+      }
+
+      final tasksRes = await _supabase
+          .from('tasks')
+          .select('*, site:sites(id, name, code, location), employee:employees(id, name, role)')
+          .order('created_at', ascending: false);
+
+      final allTasks = (tasksRes as List).map((j) => TaskModel.fromJson(j)).toList();
+
+      List<TaskModel> myTasks = [];
+      if (empId != null) {
+        myTasks = allTasks.where((t) => t.assignedEmployeeId == empId).toList();
+      }
+
+      // If Super Admin or Admin and has no personal assigned tasks, show all assigned tasks across the team
+      if (myTasks.isEmpty && (_permissionService.isSuperAdmin || _permissionService.isAdmin)) {
+        myTasks = allTasks.where((t) => t.assignedEmployeeId != null).take(6).toList();
+      }
+
+      if (mounted) {
+        setState(() {
+          _assignedTasks = myTasks;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching assigned tasks: $e');
     }
   }
 
@@ -240,7 +293,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                       ],
 
-                      const SizedBox(height: 24),
+                      const SizedBox(height: 20),
 
                       // 3. KEY OVERVIEW SECTION HEADER
                       _buildSectionHeaderWithLivePill('Key Overview'),
@@ -462,47 +515,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white,
-                          border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.03),
-                              blurRadius: 6,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: IconButton(
-                          icon: const Icon(Icons.notifications_none_rounded, size: 19, color: Color(0xFF4B5563)),
-                          padding: EdgeInsets.zero,
-                          onPressed: () {},
-                        ),
-                      ),
-                      Positioned(
-                        top: -1,
-                        right: -1,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFEF4444),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Text(
-                            '3',
-                            style: TextStyle(color: Colors.white, fontSize: 8.5, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
+                  _buildNotificationBell(context),
                   const SizedBox(width: 10),
                   InkWell(
                     onTap: () {
@@ -685,41 +698,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
         const SizedBox(width: 8),
 
-        // Notification Bell with badge 3
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white,
-                border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.notifications_none_rounded, size: 19, color: Color(0xFF4B5563)),
-                padding: EdgeInsets.zero,
-                onPressed: () {},
-              ),
-            ),
-            Positioned(
-              top: -3,
-              right: -3,
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFEF4444),
-                  shape: BoxShape.circle,
-                ),
-                child: const Text(
-                  '3',
-                  style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-          ],
-        ),
+        // Notification Bell
+        _buildNotificationBell(context),
 
         const SizedBox(width: 12),
 
@@ -1069,6 +1049,548 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  // --- NOTIFICATIONS & ASSIGNED TASK ALERTS ---
+
+  Future<void> _loadReadNotifications() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final user = _supabase.auth.currentUser;
+      final key = 'read_notifs_${user?.id ?? "guest"}';
+      final list = prefs.getStringList(key) ?? [];
+      if (mounted) {
+        setState(() {
+          _readNotificationIds = list.toSet();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading read notifications: $e');
+    }
+  }
+
+  Future<void> _markNotificationAsRead(String notifId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final user = _supabase.auth.currentUser;
+      final key = 'read_notifs_${user?.id ?? "guest"}';
+      _readNotificationIds.add(notifId);
+      await prefs.setStringList(key, _readNotificationIds.toList());
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      debugPrint('Error marking notification as read: $e');
+    }
+  }
+
+  Future<void> _markAllNotificationsAsRead(List<AppNotificationItem> notifs) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final user = _supabase.auth.currentUser;
+      final key = 'read_notifs_${user?.id ?? "guest"}';
+      for (final n in notifs) {
+        _readNotificationIds.add(n.id);
+      }
+      await prefs.setStringList(key, _readNotificationIds.toList());
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      debugPrint('Error marking all as read: $e');
+    }
+  }
+
+  List<AppNotificationItem> _getNotifications() {
+    final List<AppNotificationItem> list = [];
+
+    for (final task in _assignedTasks) {
+      final id = 'task_${task.id}';
+      list.add(AppNotificationItem(
+        id: id,
+        title: 'Task Assigned: ${task.title}',
+        subtitle: task.siteName != null
+            ? 'Site: ${task.siteName}'
+            : (task.siteCode != null ? 'Site: ${task.siteCode}' : 'Project Site'),
+        timestamp: task.dueDate ?? task.startDate,
+        type: 'task',
+        task: task,
+        isRead: _readNotificationIds.contains(id),
+      ));
+    }
+
+    if (_pendingCount > 0 && (_permissionService.isSuperAdmin || _permissionService.isAdmin)) {
+      final id = 'admission_$_pendingCount';
+      list.add(AppNotificationItem(
+        id: id,
+        title: 'User Admission Requests',
+        subtitle: '$_pendingCount user admission request${_pendingCount > 1 ? "s" : ""} waiting for approval',
+        timestamp: null,
+        type: 'admission',
+        task: null,
+        isRead: _readNotificationIds.contains(id),
+      ));
+    }
+
+    return list;
+  }
+
+  Widget _buildNotificationBell(BuildContext context) {
+    final notifications = _getNotifications();
+    final unreadCount = notifications.where((n) => !n.isRead).length;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white,
+            border: Border.all(color: Colors.grey.withValues(alpha: 0.2)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: IconButton(
+            icon: Icon(
+              unreadCount > 0 ? Icons.notifications_active_rounded : Icons.notifications_none_rounded,
+              size: 19,
+              color: unreadCount > 0 ? const Color(0xFF0B5ED7) : const Color(0xFF4B5563),
+            ),
+            padding: EdgeInsets.zero,
+            onPressed: () => _showNotificationsSheet(context),
+          ),
+        ),
+        if (unreadCount > 0)
+          Positioned(
+            top: -2,
+            right: -2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.white, width: 1.5),
+              ),
+              child: Text(
+                unreadCount > 9 ? '9+' : '$unreadCount',
+                style: const TextStyle(color: Colors.white, fontSize: 8.5, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  void _showNotificationsSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (modalContext, setModalState) {
+          final notifications = _getNotifications();
+          final unreadCount = notifications.where((n) => !n.isRead).length;
+
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.72,
+            decoration: const BoxDecoration(
+              color: Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              children: [
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 12, bottom: 8),
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0B5ED7).withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.notifications_active_rounded, size: 20, color: Color(0xFF0B5ED7)),
+                      ),
+                      const SizedBox(width: 10),
+                      const Text(
+                        'Notifications',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0F2537),
+                        ),
+                      ),
+                      if (unreadCount > 0) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '$unreadCount new',
+                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                      const Spacer(),
+                      if (unreadCount > 0)
+                        TextButton(
+                          onPressed: () async {
+                            await _markAllNotificationsAsRead(notifications);
+                            setModalState(() {});
+                          },
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: const Text(
+                            'Mark all as read',
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF0B5ED7),
+                            ),
+                          ),
+                        ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 20, color: Colors.grey),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: notifications.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.grey.shade200),
+                                ),
+                                child: Icon(Icons.notifications_none_rounded, size: 48, color: Colors.grey.shade400),
+                              ),
+                              const SizedBox(height: 16),
+                              const Text(
+                                'No notifications',
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF0F2537)),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'You have no assigned tasks or pending alerts at this time.',
+                                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                          itemCount: notifications.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final item = notifications[index];
+                            return _buildNotificationCard(
+                              context: context,
+                              item: item,
+                              onMarkAsRead: () async {
+                                await _markNotificationAsRead(item.id);
+                                setModalState(() {});
+                              },
+                              onView: () async {
+                                await _markNotificationAsRead(item.id);
+                                setModalState(() {});
+                                if (!context.mounted) return;
+                                Navigator.pop(ctx);
+                                if (item.type == 'task' && item.task != null) {
+                                  _showTaskDetailsDialog(context, item.task!);
+                                } else if (item.type == 'admission') {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => const EmployeeListScreen(initialTab: 1)),
+                                  ).then((_) => _loadData());
+                                }
+                              },
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildNotificationCard({
+    required BuildContext context,
+    required AppNotificationItem item,
+    required VoidCallback onMarkAsRead,
+    required VoidCallback onView,
+  }) {
+    final isTask = item.type == 'task';
+    final task = item.task;
+    final dateFormat = DateFormat('dd MMM yyyy');
+
+    Color statusColor = const Color(0xFFC2410C);
+    Color statusBg = const Color(0xFFFFF7ED);
+    if (task != null) {
+      final isCompleted = task.status.toLowerCase() == 'completed';
+      final isOngoing = task.status.toLowerCase() == 'ongoing';
+      if (isCompleted) {
+        statusBg = const Color(0xFFE6F4EA);
+        statusColor = const Color(0xFF047857);
+      } else if (isOngoing) {
+        statusBg = const Color(0xFFEFF6FF);
+        statusColor = const Color(0xFF1D4ED8);
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: item.isRead ? Colors.white : const Color(0xFFF0F7FF),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: item.isRead ? Colors.grey.shade200 : const Color(0xFF0B5ED7).withValues(alpha: 0.35),
+          width: item.isRead ? 1 : 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: isTask
+                      ? const Color(0xFF0B5ED7).withValues(alpha: 0.1)
+                      : const Color(0xFFF59E0B).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  isTask ? Icons.assignment_rounded : Icons.person_add_rounded,
+                  size: 20,
+                  color: isTask ? const Color(0xFF0B5ED7) : const Color(0xFFD97706),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            item.title,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: item.isRead ? FontWeight.w600 : FontWeight.bold,
+                              color: const Color(0xFF0A2540),
+                            ),
+                          ),
+                        ),
+                        if (!item.isRead) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            width: 8,
+                            height: 8,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF0B5ED7),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        Icon(Icons.business_rounded, size: 12, color: Colors.grey.shade600),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            item.subtitle,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade700,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (task != null) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: statusBg,
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: Text(
+                              task.status,
+                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (item.timestamp != null) ...[
+                      const SizedBox(height: 5),
+                      Row(
+                        children: [
+                          Icon(Icons.calendar_today_rounded, size: 11, color: Colors.grey.shade500),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Due: ${dateFormat.format(item.timestamp!)}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade600,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    if (task != null && task.subModules.isNotEmpty) ...[
+                      const SizedBox(height: 5),
+                      Row(
+                        children: [
+                          Icon(Icons.account_tree_outlined, size: 11, color: Colors.grey.shade600),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Sub-modules: ${task.completedSubModulesCount}/${task.subModules.length} Done',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: task.completedSubModulesCount == task.subModules.length
+                                  ? const Color(0xFF137333)
+                                  : const Color(0xFF0B5ED7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              // MARK AS READ BUTTON
+              if (!item.isRead)
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF4B5563),
+                    side: BorderSide(color: Colors.grey.shade300),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  onPressed: onMarkAsRead,
+                  icon: const Icon(Icons.check_rounded, size: 13),
+                  label: const Text(
+                    'Mark as read',
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600),
+                  ),
+                )
+              else
+                Row(
+                  children: [
+                    Icon(Icons.done_all_rounded, size: 14, color: Colors.green.shade600),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Read',
+                      style: TextStyle(fontSize: 11.5, color: Colors.green.shade700, fontWeight: FontWeight.w500),
+                    ),
+                  ],
+                ),
+
+              const SizedBox(width: 8),
+
+              // VIEW BUTTON
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0A2540),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  elevation: 0,
+                  visualDensity: VisualDensity.compact,
+                ),
+                onPressed: onView,
+                icon: const Icon(Icons.visibility_outlined, size: 13),
+                label: const Text(
+                  'VIEW',
+                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTaskDetailsDialog(BuildContext context, TaskModel task) {
+    TaskDetailsSheet.show(
+      context,
+      task: task,
+      onUpdated: () {
+        _loadData();
+      },
+      onOpenSite: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SiteDetailsScreen(siteId: task.siteId),
+          ),
+        ).then((_) => _loadData());
+      },
     );
   }
 
@@ -1904,4 +2426,24 @@ class _SparklinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _SparklinePainter oldDelegate) => false;
+}
+
+class AppNotificationItem {
+  final String id;
+  final String title;
+  final String subtitle;
+  final DateTime? timestamp;
+  final String type; // 'task' or 'admission'
+  final TaskModel? task;
+  final bool isRead;
+
+  AppNotificationItem({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    this.timestamp,
+    required this.type,
+    this.task,
+    required this.isRead,
+  });
 }

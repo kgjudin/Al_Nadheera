@@ -155,7 +155,6 @@ class _SiteLabourTabState extends State<SiteLabourTab> {
                     if (formKey.currentState!.validate()) {
                       final q = double.tryParse(quantityCtrl.text) ?? 0.0;
                       final r = double.tryParse(rateCtrl.text) ?? 0.0;
-                      final amt = double.tryParse(amountCtrl.text) ?? (q * r);
                       final pending = double.tryParse(pendingCtrl.text) ?? 0.0;
 
                       final data = {
@@ -163,7 +162,6 @@ class _SiteLabourTabState extends State<SiteLabourTab> {
                         'labour': labourCtrl.text.trim(),
                         'quantity': q,
                         'rate': r,
-                        'amount': amt,
                         'pending': pending,
                       };
 

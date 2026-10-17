@@ -16,6 +16,11 @@ class Site {
   final double assignedBudget;
   final double spent;
   final double receivedSummary;
+  final double summarySpent;
+  final double labourSpent;
+  final double materialSpent;
+  final double subcontractorSpent;
+  final double additionalSpent;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -30,6 +35,11 @@ class Site {
     required this.assignedBudget,
     this.spent = 0.0,
     this.receivedSummary = 0.0,
+    this.summarySpent = 0.0,
+    this.labourSpent = 0.0,
+    this.materialSpent = 0.0,
+    this.subcontractorSpent = 0.0,
+    this.additionalSpent = 0.0,
     this.createdAt,
     this.updatedAt,
   });
@@ -46,6 +56,11 @@ class Site {
       assignedBudget: _toDouble(json['assigned_budget']),
       spent: _toDouble(json['spent']),
       receivedSummary: _toDouble(json['received_summary']),
+      summarySpent: _toDouble(json['summary_spent']),
+      labourSpent: _toDouble(json['labour_spent']),
+      materialSpent: _toDouble(json['material_spent']),
+      subcontractorSpent: _toDouble(json['subcontractor_spent']),
+      additionalSpent: _toDouble(json['additional_spent']),
       createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : null,
       updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at']) : null,
     );
@@ -63,11 +78,16 @@ class Site {
       'assigned_budget': assignedBudget,
       'spent': spent,
       'received_summary': receivedSummary,
+      'summary_spent': summarySpent,
+      'labour_spent': labourSpent,
+      'material_spent': materialSpent,
+      'subcontractor_spent': subcontractorSpent,
+      'additional_spent': additionalSpent,
     };
   }
 
-  double get effectiveGiven => receivedSummary > 0 ? receivedSummary : assignedBudget;
-  double get remainingBalance => effectiveGiven - spent;
+  double get effectiveGiven => assignedBudget;
+  double get remainingBalance => assignedBudget - spent;
 }
 
 

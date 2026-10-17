@@ -18,9 +18,24 @@ const getSiteFinancials = async (siteId) => {
   ]);
 
   const receivedSummary = (summaries || []).reduce((sum, s) => sum + Number(s.received_amount || 0), 0);
-  const spent = (summaries || []).reduce((sum, s) => sum + Number(s.cash_expenses || 0), 0);
 
-  return { receivedSummary, spent };
+  const summarySpent = (summaries || []).reduce((sum, s) => sum + Number(s.cash_expenses || 0), 0);
+  const labourSpent = (labours || []).reduce((sum, l) => sum + Number(l.amount || 0), 0);
+  const materialSpent = (materials || []).reduce((sum, m) => sum + Number(m.invoice_amount || 0) + Number(m.vat_amount || 0), 0);
+  const subcontractorSpent = (subcontracts || []).reduce((sum, sc) => sum + Number(sc.invoice_amount || 0) + Number(sc.vat_amount || 0), 0);
+  const additionalSpent = (additionals || []).reduce((sum, a) => sum + Number(a.amount || 0), 0);
+
+  const spent = summarySpent + labourSpent + materialSpent + subcontractorSpent + additionalSpent;
+
+  return {
+    receivedSummary,
+    spent,
+    summarySpent,
+    labourSpent,
+    materialSpent,
+    subcontractorSpent,
+    additionalSpent,
+  };
 };
 
 exports.getAllSites = async (req, res) => {
@@ -30,7 +45,16 @@ exports.getAllSites = async (req, res) => {
 
     const enrichedSites = await Promise.all((sites || []).map(async (site) => {
       const fin = await getSiteFinancials(site.id);
-      return { ...site, spent: fin.spent, received_summary: fin.receivedSummary };
+      return {
+        ...site,
+        spent: fin.spent,
+        received_summary: fin.receivedSummary,
+        summary_spent: fin.summarySpent,
+        labour_spent: fin.labourSpent,
+        material_spent: fin.materialSpent,
+        subcontractor_spent: fin.subcontractorSpent,
+        additional_spent: fin.additionalSpent,
+      };
     }));
 
     res.status(200).json({ success: true, data: enrichedSites });
@@ -47,7 +71,16 @@ exports.getSiteById = async (req, res) => {
     if (!data) return res.status(404).json({ success: false, message: 'Site not found' });
 
     const fin = await getSiteFinancials(id);
-    const enrichedSite = { ...data, spent: fin.spent, received_summary: fin.receivedSummary };
+    const enrichedSite = {
+      ...data,
+      spent: fin.spent,
+      received_summary: fin.receivedSummary,
+      summary_spent: fin.summarySpent,
+      labour_spent: fin.labourSpent,
+      material_spent: fin.materialSpent,
+      subcontractor_spent: fin.subcontractorSpent,
+      additional_spent: fin.additionalSpent,
+    };
 
     res.status(200).json({ success: true, data: enrichedSite });
   } catch (error) {

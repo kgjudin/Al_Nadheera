@@ -197,8 +197,19 @@ class _SiteBudgetHistoryDialogState extends State<SiteBudgetHistoryDialog> {
                             style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold, color: isAdd ? PdfColors.green800 : PdfColors.red800),
                           ),
                         ),
-                        pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text(currencyFormat.format(tx.newBudget), style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold))),
-                        pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text(tx.reason ?? '-', style: const pw.TextStyle(fontSize: 8))),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(6),
+                          child: pw.Text(
+                            [
+                              if (tx.reason != null && tx.reason!.isNotEmpty) tx.reason!,
+                              if (tx.bankName != null && tx.bankName!.isNotEmpty) 'Bank: ${tx.bankName}',
+                            ].isEmpty ? '-' : [
+                              if (tx.reason != null && tx.reason!.isNotEmpty) tx.reason!,
+                              if (tx.bankName != null && tx.bankName!.isNotEmpty) 'Bank: ${tx.bankName}',
+                            ].join(' | '),
+                            style: const pw.TextStyle(fontSize: 8),
+                          ),
+                        ),
                       ],
                     );
                   }),
@@ -354,6 +365,11 @@ class _SiteBudgetHistoryDialogState extends State<SiteBudgetHistoryDialog> {
                                         Text(
                                           'Reason: ${tx.reason}',
                                           style: TextStyle(fontSize: 11, color: Colors.grey[700]),
+                                        ),
+                                      if (tx.bankName != null && tx.bankName!.isNotEmpty)
+                                        Text(
+                                          'Deducted from Bank: ${tx.bankName}',
+                                          style: TextStyle(fontSize: 11, color: Colors.blue[800], fontWeight: FontWeight.w600),
                                         ),
                                       Text(
                                         'Date: ${DateFormat('yyyy-MM-dd').format(tx.date)}',

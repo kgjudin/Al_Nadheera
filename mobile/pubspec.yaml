@@ -50,6 +50,8 @@ dependencies:
   flutter_markdown: ^0.7.7+1
   pdf: ^3.13.1
   printing: ^5.15.1
+  url_launcher: ^6.3.3
+  syncfusion_flutter_xlsio: ^35.1.40+1
 
 dev_dependencies:
   flutter_test:

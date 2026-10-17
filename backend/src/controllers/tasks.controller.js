@@ -19,7 +19,7 @@ exports.getTasksBySite = async (req, res) => {
 exports.createTask = async (req, res) => {
   try {
     const { siteId } = req.params;
-    const { title, description, assigned_employee_id, start_date, due_date, status } = req.body;
+    const { title, description, assigned_employee_id, start_date, due_date, status, sub_modules } = req.body;
     
     if (!title) return res.status(422).json({ success: false, message: 'Title is required' });
 
@@ -32,7 +32,8 @@ exports.createTask = async (req, res) => {
         assigned_employee_id, 
         start_date, 
         due_date, 
-        status: status || 'Pending'
+        status: status || 'Pending',
+        sub_modules: sub_modules || []
       }])
       .select()
       .single();
@@ -69,6 +70,39 @@ exports.deleteTask = async (req, res) => {
     const { error } = await supabase.from('tasks').delete().eq('id', id);
     if (error) throw error;
     res.status(200).json({ success: true, message: 'Task deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.bulkUpdateTasks = async (req, res) => {
+  try {
+    const { ids, updates } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'No task IDs provided' });
+    }
+    const { data, error } = await supabase
+      .from('tasks')
+      .update(updates)
+      .in('id', ids)
+      .select();
+      
+    if (error) throw error;
+    res.status(200).json({ success: true, count: data ? data.length : 0, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.bulkDeleteTasks = async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'No task IDs provided' });
+    }
+    const { error } = await supabase.from('tasks').delete().in('id', ids);
+    if (error) throw error;
+    res.status(200).json({ success: true, message: `${ids.length} tasks deleted successfully` });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

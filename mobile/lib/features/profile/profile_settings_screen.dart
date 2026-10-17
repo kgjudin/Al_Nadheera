@@ -119,14 +119,20 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       final publicUrl = _supabase.storage.from('profile-images').getPublicUrl(filePath);
 
       // Update in employees table
-      await _supabase.from('employees').upsert({
-        'id': _userId!,
-        'name': _nameController.text.trim().isNotEmpty
-            ? _nameController.text.trim()
-            : (_supabase.auth.currentUser?.email ?? 'User'),
-        'email': _supabase.auth.currentUser?.email,
-        'profile_image_url': publicUrl,
-      });
+      try {
+        await _supabase.from('employees').update({
+          'profile_image_url': publicUrl,
+        }).eq('id', _userId!);
+      } catch (_) {
+        await _supabase.from('employees').upsert({
+          'id': _userId!,
+          'name': _nameController.text.trim().isNotEmpty
+              ? _nameController.text.trim()
+              : (_supabase.auth.currentUser?.email ?? 'User'),
+          'email': _supabase.auth.currentUser?.email,
+          'profile_image_url': publicUrl,
+        });
+      }
 
       // Update in Supabase auth metadata
       try {
@@ -499,6 +505,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                                   fit: BoxFit.cover,
                                   width: 110,
                                   height: 110,
+                                  cacheWidth: 300,
                                   errorBuilder: (_, __, ___) => _buildFallbackAvatar(initial, primaryColor),
                                 )
                               : _buildFallbackAvatar(initial, primaryColor),

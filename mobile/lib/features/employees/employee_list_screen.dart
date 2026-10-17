@@ -428,8 +428,13 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> with SingleTick
                 CircleAvatar(
                   radius: 26,
                   backgroundColor: Colors.amber.shade100,
-                  backgroundImage: emp.profileImageUrl != null ? NetworkImage(emp.profileImageUrl!) : null,
-                  child: emp.profileImageUrl == null
+                  backgroundImage: (emp.profileImageUrl != null && emp.profileImageUrl!.isNotEmpty)
+                      ? NetworkImage(emp.profileImageUrl!)
+                      : null,
+                  onBackgroundImageError: (emp.profileImageUrl != null && emp.profileImageUrl!.isNotEmpty)
+                      ? (_, __) {}
+                      : null,
+                  child: (emp.profileImageUrl == null || emp.profileImageUrl!.isEmpty)
                       ? Text(
                           emp.name.isNotEmpty ? emp.name[0].toUpperCase() : '?',
                           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.amber.shade900),
@@ -554,8 +559,13 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> with SingleTick
         leading: CircleAvatar(
           radius: 26,
           backgroundColor: isDeclined ? Colors.red.shade100 : Colors.grey.shade200,
-          backgroundImage: emp.profileImageUrl != null ? NetworkImage(emp.profileImageUrl!) : null,
-          child: emp.profileImageUrl == null
+          backgroundImage: (emp.profileImageUrl != null && emp.profileImageUrl!.isNotEmpty)
+              ? NetworkImage(emp.profileImageUrl!)
+              : null,
+          onBackgroundImageError: (emp.profileImageUrl != null && emp.profileImageUrl!.isNotEmpty)
+              ? (_, __) {}
+              : null,
+          child: (emp.profileImageUrl == null || emp.profileImageUrl!.isEmpty)
               ? Text(
                   emp.name.isNotEmpty ? emp.name[0].toUpperCase() : '?',
                   style: TextStyle(
@@ -617,8 +627,13 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> with SingleTick
         leading: CircleAvatar(
           radius: 30,
           backgroundColor: Colors.blue[100],
-          backgroundImage: emp.profileImageUrl != null ? NetworkImage(emp.profileImageUrl!) : null,
-          child: emp.profileImageUrl == null
+          backgroundImage: (emp.profileImageUrl != null && emp.profileImageUrl!.isNotEmpty)
+              ? NetworkImage(emp.profileImageUrl!)
+              : null,
+          onBackgroundImageError: (emp.profileImageUrl != null && emp.profileImageUrl!.isNotEmpty)
+              ? (_, __) {}
+              : null,
+          child: (emp.profileImageUrl == null || emp.profileImageUrl!.isEmpty)
               ? Text(emp.name.isNotEmpty ? emp.name[0].toUpperCase() : '?',
                   style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue))
               : null,
