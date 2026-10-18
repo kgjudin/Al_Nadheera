@@ -398,7 +398,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     required IconData icon,
   }) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(12),
@@ -410,19 +410,33 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                title,
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color),
+              Flexible(
+                child: Text(
+                  title,
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color),
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 2),
+              Icon(icon, size: 13, color: color),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            amount,
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          const SizedBox(height: 5),
+          SizedBox(
+            width: double.infinity,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                amount,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.bold,
+                  color: color,
+                  letterSpacing: -0.3,
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 2),
           Text(
