@@ -14,6 +14,7 @@ import '../../services/permission_service.dart';
 import '../../core/constants/app_modules.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/chat/services/presence_service.dart';
+import '../../services/location_service.dart';
 import '../../features/ai_assistant/widgets/floating_ai_assistant_button.dart';
 import '../../features/invoices/invoices_screen.dart';
 import '../../features/customers/customers_screen.dart';
@@ -39,6 +40,8 @@ class _MainLayoutState extends State<MainLayout> {
   void initState() {
     super.initState();
     _permissionService.loadUserPermissions();
+    PresenceService.instance.initialize();
+    LocationService.instance.initialize();
     _loadUnreadChatCount();
     _setupUnreadSubscription();
   }

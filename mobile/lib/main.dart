@@ -7,6 +7,7 @@ import 'core/theme/app_theme.dart';
 import 'features/auth/login_screen.dart';
 import 'core/widgets/main_layout.dart';
 import 'features/chat/services/presence_service.dart';
+import 'services/location_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -41,15 +42,28 @@ class AlNadheeraApp extends StatefulWidget {
   State<AlNadheeraApp> createState() => _AlNadheeraAppState();
 }
 
-class _AlNadheeraAppState extends State<AlNadheeraApp> {
+class _AlNadheeraAppState extends State<AlNadheeraApp> with WidgetsBindingObserver {
   StreamSubscription<AuthState>? _authSubscription;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
+    // If already authenticated on launch, initialize tracking
+    if (Supabase.instance.client.auth.currentSession != null) {
+      PresenceService.instance.initialize();
+      LocationService.instance.initialize();
+    }
+
     try {
       _authSubscription = Supabase.instance.client.auth.onAuthStateChange.listen((data) {
-        if (data.event == AuthChangeEvent.signedOut) {
+        if (data.event == AuthChangeEvent.signedIn) {
+          PresenceService.instance.initialize();
+          LocationService.instance.initialize();
+        } else if (data.event == AuthChangeEvent.signedOut) {
+          LocationService.instance.onAppClosed();
+          LocationService.instance.dispose();
           PresenceService.instance.dispose();
           navigatorKey.currentState?.pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const LoginScreen()),
@@ -61,8 +75,22 @@ class _AlNadheeraAppState extends State<AlNadheeraApp> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // Employee returned to the app -> update current location & mark online
+      LocationService.instance.recordCurrentLocation();
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      // Employee closed, minimized, or exited the app -> save latest location & mark offline
+      LocationService.instance.onAppClosed();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _authSubscription?.cancel();
+    LocationService.instance.dispose();
     super.dispose();
   }
 

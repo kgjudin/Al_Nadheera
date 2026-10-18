@@ -9,6 +9,7 @@ import '../../models/site_model.dart';
 import 'add_edit_employee_screen.dart';
 import '../roles/employee_custom_permissions_screen.dart';
 import '../../core/widgets/profile_avatar_button.dart';
+import 'widgets/employee_location_sheet.dart';
 
 class EmployeeListScreen extends StatefulWidget {
   final int initialTab;
@@ -587,6 +588,15 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> with SingleTick
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            IconButton(
+              icon: Icon(
+                Icons.location_on_outlined,
+                color: emp.isOnline ? const Color(0xFF16A34A) : Colors.grey.shade600,
+                size: 20,
+              ),
+              tooltip: 'Locate Employee',
+              onPressed: () => EmployeeLocationSheet.show(context, emp),
+            ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
@@ -664,6 +674,15 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> with SingleTick
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            IconButton(
+              icon: Icon(
+                Icons.location_on_outlined,
+                color: emp.isOnline ? const Color(0xFF16A34A) : const Color(0xFF0A2540),
+                size: 22,
+              ),
+              tooltip: 'Locate Employee',
+              onPressed: () => EmployeeLocationSheet.show(context, emp),
+            ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
@@ -682,7 +701,9 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> with SingleTick
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert, size: 20, color: Colors.grey),
               onSelected: (val) {
-                if (val == 'edit') {
+                if (val == 'locate') {
+                  EmployeeLocationSheet.show(context, emp);
+                } else if (val == 'edit') {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -703,6 +724,16 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> with SingleTick
                 }
               },
               itemBuilder: (context) => [
+                const PopupMenuItem(
+                  value: 'locate',
+                  child: Row(
+                    children: [
+                      Icon(Icons.location_searching_rounded, size: 18, color: Color(0xFF0A2540)),
+                      SizedBox(width: 8),
+                      Text('Locate Employee'),
+                    ],
+                  ),
+                ),
                 if (ps.canEdit(AppModules.employees))
                   const PopupMenuItem(
                     value: 'edit',

@@ -51,5 +51,7 @@
 	<string>ANCC requires camera access to capture profile photos and site progress images.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>ANCC requires microphone access to record site videos with audio.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>ANCC requires location access while using the app to note your work location and verify on-site attendance.</string>
 </dict>
 </plist>

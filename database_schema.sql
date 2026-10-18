@@ -98,8 +98,24 @@ CREATE TABLE public.employees (
     assigned_site_id UUID REFERENCES public.sites(id) ON DELETE SET NULL,
     status TEXT DEFAULT 'Active',
     profile_image_url TEXT,
+    last_latitude DOUBLE PRECISION,
+    last_longitude DOUBLE PRECISION,
+    last_location_address TEXT,
+    last_location_updated_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Employee Location Logs Table
+CREATE TABLE IF NOT EXISTS public.employee_location_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    employee_id UUID REFERENCES public.employees(id) ON DELETE CASCADE,
+    latitude DOUBLE PRECISION NOT NULL,
+    longitude DOUBLE PRECISION NOT NULL,
+    address TEXT,
+    accuracy DOUBLE PRECISION,
+    recorded_at TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 8. Tasks Table
