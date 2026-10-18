@@ -176,7 +176,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
       body: RefreshIndicator(
         onRefresh: _loadInvoices,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(14, 12, 14, 80),
           children: [
             // KPI Summary Cards
             Row(
@@ -191,7 +191,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                     icon: Icons.receipt_long_rounded,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
                   child: _buildKpiCard(
                     title: 'Pending',
@@ -202,7 +202,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                     icon: Icons.hourglass_top_rounded,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
                   child: _buildKpiCard(
                     title: 'Paid',
@@ -216,35 +216,35 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
               ],
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
             // Search Bar
             TextField(
               decoration: InputDecoration(
                 hintText: 'Search invoice number, customer, or site...',
-                prefixIcon: const Icon(Icons.search_rounded),
+                prefixIcon: const Icon(Icons.search_rounded, size: 20),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.clear_rounded),
+                        icon: const Icon(Icons.clear_rounded, size: 18),
                         onPressed: () => setState(() => _searchQuery = ''),
                       )
                     : null,
                 filled: true,
                 fillColor: Colors.white,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                   borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                   borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
                 ),
               ),
               onChanged: (v) => setState(() => _searchQuery = v),
             ),
 
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
 
             // Filter Tabs (All, Pending, Paid)
             Row(
@@ -257,7 +257,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
               ],
             ),
 
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
 
             // Invoices List
             if (_isLoading)
@@ -438,15 +438,15 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     final isPaid = invoice.isPaid;
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 8),
       elevation: 0,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         side: const BorderSide(color: Color(0xFFE2E8F0)),
       ),
       color: Colors.white,
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         onTap: () {
           Navigator.push(
             context,
@@ -456,7 +456,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
           ).then((_) => _loadInvoices());
         },
         child: Padding(
-          padding: const EdgeInsets.all(14.0),
+          padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 10.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -467,15 +467,15 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                         decoration: BoxDecoration(
                           color: const Color(0xFF0A2540).withValues(alpha: 0.08),
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(5),
                         ),
                         child: Text(
                           invoice.invoiceNumber,
                           style: const TextStyle(
-                            fontSize: 12,
+                            fontSize: 11.5,
                             fontWeight: FontWeight.bold,
                             color: Color(0xFF0A2540),
                           ),
@@ -494,7 +494,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                     onTap: () => _toggleInvoiceStatus(invoice),
                     borderRadius: BorderRadius.circular(20),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
                       decoration: BoxDecoration(
                         color: isPaid ? const Color(0xFFE6F4EA) : const Color(0xFFFCE8E6),
                         borderRadius: BorderRadius.circular(20),
@@ -508,20 +508,20 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                         children: [
                           Icon(
                             isPaid ? Icons.check_circle_rounded : Icons.hourglass_top_rounded,
-                            size: 13,
+                            size: 12,
                             color: isPaid ? const Color(0xFF137333) : const Color(0xFFD93025),
                           ),
                           const SizedBox(width: 4),
                           Text(
                             isPaid ? 'PAID' : 'PENDING',
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 10.5,
                               fontWeight: FontWeight.bold,
                               color: isPaid ? const Color(0xFF137333) : const Color(0xFFD93025),
                             ),
                           ),
                           const SizedBox(width: 2),
-                          const Icon(Icons.sync_rounded, size: 10, color: Colors.grey),
+                          const Icon(Icons.sync_rounded, size: 9, color: Colors.grey),
                         ],
                       ),
                     ),
@@ -529,7 +529,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                 ],
               ),
 
-              const SizedBox(height: 10),
+              const SizedBox(height: 6),
 
               // Customer Name and Amount Row
               Row(
@@ -542,14 +542,14 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                         Text(
                           invoice.customerName,
                           style: const TextStyle(
-                            fontSize: 16,
+                            fontSize: 15,
                             fontWeight: FontWeight.bold,
                             color: Color(0xFF0A2540),
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
                         if (invoice.siteName != null && invoice.siteName!.isNotEmpty) ...[
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 1),
                           Row(
                             children: [
                               const Icon(Icons.business_rounded, size: 12, color: Color(0xFF0B5ED7)),
@@ -567,7 +567,7 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                   Text(
                     currencyFormat.format(invoice.totalAmount),
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: 15,
                       fontWeight: FontWeight.bold,
                       color: isPaid ? const Color(0xFF137333) : const Color(0xFF0A2540),
                     ),
@@ -576,18 +576,16 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
               ),
 
               if (invoice.description != null && invoice.description!.isNotEmpty) ...[
-                const SizedBox(height: 6),
+                const SizedBox(height: 3),
                 Text(
                   invoice.description!,
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+                  style: const TextStyle(fontSize: 11.5, color: Color(0xFF64748B)),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
 
-              const SizedBox(height: 10),
-              const Divider(height: 1, color: Color(0xFFF1F5F9)),
-              const SizedBox(height: 6),
+              const Divider(height: 12, thickness: 0.7, color: Color(0xFFF1F5F9)),
 
               // Bottom card bar: Items count, Print / PDF shortcut
               Row(
@@ -600,12 +598,19 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                   Row(
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.print_outlined, size: 18, color: Color(0xFF0A2540)),
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(),
+                        icon: const Icon(Icons.print_outlined, size: 17, color: Color(0xFF0A2540)),
                         tooltip: 'Print PDF',
                         onPressed: () => _printOrSharePdf(invoice),
                       ),
+                      const SizedBox(width: 10),
                       IconButton(
-                        icon: const Icon(Icons.edit_outlined, size: 18, color: Color(0xFF0A2540)),
+                        visualDensity: VisualDensity.compact,
+                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(),
+                        icon: const Icon(Icons.edit_outlined, size: 17, color: Color(0xFF0A2540)),
                         tooltip: 'Edit Document',
                         onPressed: () {
                           Navigator.push(
