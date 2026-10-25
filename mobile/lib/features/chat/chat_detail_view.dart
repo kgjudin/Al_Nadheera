@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/api_service.dart';
+import '../../services/camera/app_camera_service.dart';
 import '../../models/site_model.dart';
 import 'models/chat_message.dart';
 import 'services/presence_service.dart';
@@ -33,6 +34,7 @@ class ChatDetailView extends StatefulWidget {
 
 class _ChatDetailViewState extends State<ChatDetailView> {
   final TextEditingController _messageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
   final _supabase = Supabase.instance.client;
   final ImagePicker _picker = ImagePicker();
 
@@ -42,6 +44,10 @@ class _ChatDetailViewState extends State<ChatDetailView> {
 
   bool _isUploading = false;
   String _uploadStatus = '';
+  bool _isSending = false;
+  int _previousMessageCount = 0;
+
+  late Stream<List<Map<String, dynamic>>> _messagesStream;
 
   @override
   void initState() {
@@ -49,10 +55,73 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     _avatarUrl = widget.avatarUrl;
     _currentUserId = _supabase.auth.currentUser?.id;
     PresenceService.instance.initialize();
+    _initMessagesStream();
     _markMessagesAsRead();
     if (_avatarUrl == null && !widget.isGroupChat) {
       _loadAvatar();
     }
+  }
+
+  @override
+  void didUpdateWidget(ChatDetailView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.entityId != widget.entityId || oldWidget.isGroupChat != widget.isGroupChat) {
+      _avatarUrl = widget.avatarUrl;
+      _initMessagesStream();
+      _markMessagesAsRead();
+      if (_avatarUrl == null && !widget.isGroupChat) {
+        _loadAvatar();
+      }
+    }
+  }
+
+  void _initMessagesStream() {
+    final baseStream = widget.isGroupChat
+        ? _supabase
+            .from('chat_messages')
+            .stream(primaryKey: ['id'])
+            .eq('site_id', widget.entityId)
+            .order('created_at', ascending: true)
+        : _supabase
+            .from('chat_messages')
+            .stream(primaryKey: ['id'])
+            .order('created_at', ascending: true);
+
+    _messagesStream = baseStream.map((messages) {
+      final seenIds = <String>{};
+      final unique = <Map<String, dynamic>>[];
+
+      for (final msg in messages) {
+        if (!widget.isGroupChat) {
+          final sender = msg['sender_id']?.toString();
+          final receiver = msg['receiver_id']?.toString();
+          final isMatch = (sender == _currentUserId && receiver == widget.entityId) ||
+              (sender == widget.entityId && receiver == _currentUserId);
+          if (!isMatch) continue;
+        }
+
+        final id = msg['id']?.toString() ?? '';
+        if (id.isNotEmpty) {
+          if (!seenIds.add(id)) {
+            continue; // Deduplicate duplicate row
+          }
+        }
+        unique.add(msg);
+      }
+      return unique;
+    });
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   Future<void> _loadAvatar() async {
@@ -88,9 +157,11 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   }
 
   Future<void> _sendMessage() async {
+    if (_isSending) return;
     final text = _messageController.text.trim();
     if (text.isEmpty || _currentUserId == null) return;
 
+    _isSending = true;
     final replyMessage = _replyingToMessage;
 
     setState(() {
@@ -100,7 +171,9 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     _messageController.clear();
 
     try {
+      final clientMsgId = const Uuid().v4();
       final messageData = {
+        'id': clientMsgId,
         'sender_id': _currentUserId,
         'message': text,
         'message_type': 'text',
@@ -114,12 +187,15 @@ class _ChatDetailViewState extends State<ChatDetailView> {
       };
 
       await _supabase.from('chat_messages').insert(messageData);
+      _scrollToBottom();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error sending message: $e')),
         );
       }
+    } finally {
+      _isSending = false;
     }
   }
 
@@ -130,14 +206,17 @@ class _ChatDetailViewState extends State<ChatDetailView> {
     String? fileName,
     int? fileSize,
   }) async {
-    if (_currentUserId == null) return;
+    if (_isSending || _currentUserId == null) return;
+    _isSending = true;
     final replyMessage = _replyingToMessage;
     setState(() {
       _replyingToMessage = null;
     });
 
     try {
+      final clientMsgId = const Uuid().v4();
       final messageData = {
+        'id': clientMsgId,
         'sender_id': _currentUserId,
         if (widget.isGroupChat) 'site_id': widget.entityId,
         if (!widget.isGroupChat) 'receiver_id': widget.entityId,
@@ -156,12 +235,15 @@ class _ChatDetailViewState extends State<ChatDetailView> {
       };
 
       await _supabase.from('chat_messages').insert(messageData);
+      _scrollToBottom();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error sending attachment: $e')),
         );
       }
+    } finally {
+      _isSending = false;
     }
   }
 
@@ -623,14 +705,9 @@ class _ChatDetailViewState extends State<ChatDetailView> {
 
     if (type == 'camera') {
       try {
-        final xfile = await _picker.pickImage(
-          source: ImageSource.camera,
-          maxWidth: 1600,
-          maxHeight: 1600,
-          imageQuality: 85,
-        );
-        if (xfile != null) {
-          await _previewAndSendImage(xfile);
+        final photo = await AppCameraService.capturePhoto(context);
+        if (photo != null) {
+          await _previewAndSendImage(photo.toXFile());
         }
       } catch (e) {
         if (mounted) {
@@ -685,6 +762,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
   @override
   void dispose() {
     _messageController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -771,22 +849,7 @@ class _ChatDetailViewState extends State<ChatDetailView> {
           // Stream Messages
           Expanded(
             child: StreamBuilder<List<Map<String, dynamic>>>(
-              stream: widget.isGroupChat
-                  ? _supabase
-                      .from('chat_messages')
-                      .stream(primaryKey: ['id'])
-                      .eq('site_id', widget.entityId)
-                      .order('created_at', ascending: true)
-                  : _supabase
-                      .from('chat_messages')
-                      .stream(primaryKey: ['id'])
-                      .order('created_at', ascending: true)
-                      .map((messages) => messages.where((msg) {
-                            final sender = msg['sender_id'];
-                            final receiver = msg['receiver_id'];
-                            return (sender == _currentUserId && receiver == widget.entityId) ||
-                                   (sender == widget.entityId && receiver == _currentUserId);
-                          }).toList()),
+              stream: _messagesStream,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -821,9 +884,23 @@ class _ChatDetailViewState extends State<ChatDetailView> {
                   );
                 }
 
-                final messages = rawMessages.map((m) => ChatMessage.fromJson(m)).toList();
+                final seenIds = <String>{};
+                final messages = <ChatMessage>[];
+                for (final m in rawMessages) {
+                  final id = m['id']?.toString() ?? '';
+                  if (id.isNotEmpty && !seenIds.add(id)) {
+                    continue;
+                  }
+                  messages.add(ChatMessage.fromJson(m));
+                }
+
+                if (messages.length > _previousMessageCount) {
+                  _previousMessageCount = messages.length;
+                  _scrollToBottom();
+                }
 
                 return ListView.builder(
+                  controller: _scrollController,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {

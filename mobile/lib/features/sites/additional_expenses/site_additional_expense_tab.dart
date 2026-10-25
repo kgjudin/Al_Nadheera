@@ -165,7 +165,7 @@ class _SiteAdditionalExpenseTabState extends State<SiteAdditionalExpenseTab> {
                           children: [
                             const Text('Disbursed', style: TextStyle(fontSize: 10, color: Colors.grey)),
                             const SizedBox(height: 2),
-                            Text(currencyFormat.format(totalDisbursed > 0 ? totalDisbursed : 3333), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0B5ED7))),
+                            Text(currencyFormat.format(totalDisbursed), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0B5ED7))),
                           ],
                         ),
                         Column(
@@ -173,7 +173,7 @@ class _SiteAdditionalExpenseTabState extends State<SiteAdditionalExpenseTab> {
                           children: [
                             const Text('Pending', style: TextStyle(fontSize: 10, color: Colors.grey)),
                             const SizedBox(height: 2),
-                            const Text('1 Claim', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFFC2410C))),
+                            const Text('0 Claims', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFFC2410C))),
                           ],
                         ),
                       ],
@@ -188,7 +188,7 @@ class _SiteAdditionalExpenseTabState extends State<SiteAdditionalExpenseTab> {
                 scrollDirection: Axis.horizontal,
                 child: Row(
                   children: [
-                    _buildFilterPill('All (${list.isNotEmpty ? list.length : 3})', _selectedFilter == 'All', () => setState(() => _selectedFilter = 'All')),
+                    _buildFilterPill('All (${list.length})', _selectedFilter == 'All', () => setState(() => _selectedFilter = 'All')),
                     const SizedBox(width: 8),
                     _buildFilterPill('Permits & Fees', _selectedFilter == 'Permits', () => setState(() => _selectedFilter = 'Permits')),
                     const SizedBox(width: 8),
@@ -201,9 +201,31 @@ class _SiteAdditionalExpenseTabState extends State<SiteAdditionalExpenseTab> {
               const SizedBox(height: 16),
 
               if (list.isEmpty) ...[
-                _buildExpenseCard('Government & Statutory Permits', '✔ Paid', const Color(0xFFE6F4EA), const Color(0xFF137333), 'ddd (Municipality Permit & Staging Fee)', '3,333.00 BHD', '2026-09-24', 'CORP-4912', '📎 Receipt.pdf'),
-                _buildExpenseCard('Utilities & Power', 'Review', const Color(0xFFE8F1FF), const Color(0xFF0B5ED7), 'Site Generator Diesel Delivery (500L)', '850.00 BHD', '2026-09-22', 'Direct Debit', '✔ Verified'),
-                _buildExpenseCard('HSE & Safety', 'Approved', const Color(0xFFE6F4EA), const Color(0xFF137333), 'PPE & Fall Protection Harness Sets', '1,420.00 BHD', '2026-09-19', 'Petty Cash', '📎 Invoice_TR.jpg'),
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Icon(Icons.receipt_outlined, size: 48, color: Colors.grey[400]),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'No Additional Expenses Yet',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0A2540)),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Tap the button below to log miscellaneous site expenses, permits, or fuel.',
+                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ] else
                 ...list.map(
                   (item) => _buildExpenseCard(

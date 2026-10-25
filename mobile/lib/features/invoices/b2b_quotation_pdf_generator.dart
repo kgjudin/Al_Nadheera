@@ -24,8 +24,11 @@ class B2bQuotationPdfGenerator {
   static Future<Uint8List> generatePdf(
     Invoice invoice, {
     DocumentTemplate? customTemplate,
+    bool? showSealSignatureArea,
   }) async {
     final pdf = pw.Document();
+
+    final effectiveShowSealSignature = showSealSignatureArea ?? invoice.showSealSignatureArea;
 
     DocumentTemplate template;
     if (customTemplate != null) {
@@ -320,12 +323,85 @@ class B2bQuotationPdfGenerator {
                 ],
               ),
             ),
+
+            // ==================== SEAL & SIGNATURE AREA ====================
+            if (effectiveShowSealSignature) ...[
+              pw.SizedBox(height: 12),
+              _buildPhysicalSealAndSignatureArea(boldFont, baseFont),
+            ],
           ];
         },
       ),
     );
 
     return pdf.save();
+  }
+
+  /// Builds the physical seal and signature box matching the official document format
+  /// Left Box: "Customer's Seal and Signature"
+  /// Right Box: "FOR : AL NADHEERA CONTRACTING CO WLL" at top, "Authorised Signatory" at bottom-right
+  static pw.Widget _buildPhysicalSealAndSignatureArea(
+    pw.Font? boldFont,
+    pw.Font? baseFont,
+  ) {
+    const double boxHeight = 85.0;
+
+    return pw.Table(
+      border: pw.TableBorder.all(color: PdfColors.black, width: 0.8),
+      columnWidths: const {
+        0: pw.FlexColumnWidth(1),
+        1: pw.FlexColumnWidth(1),
+      },
+      children: [
+        pw.TableRow(
+          children: [
+            // Left Box: Customer's Seal and Signature
+            pw.Container(
+              height: boxHeight,
+              padding: const pw.EdgeInsets.all(6),
+              child: pw.Align(
+                alignment: pw.Alignment.topLeft,
+                child: pw.Text(
+                  "Customer's Seal and Signature",
+                  style: pw.TextStyle(
+                    fontSize: 8.5,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+
+            // Right Box: Company Header + Authorised Signatory Footer
+            pw.Container(
+              height: boxHeight,
+              padding: const pw.EdgeInsets.all(6),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(
+                    'FOR : AL NADHEERA CONTRACTING CO WLL',
+                    style: pw.TextStyle(
+                      fontSize: 8.5,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.Align(
+                    alignment: pw.Alignment.bottomRight,
+                    child: pw.Text(
+                      'Authorised Signatory',
+                      style: const pw.TextStyle(
+                        fontSize: 8.5,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
   /// Builds the BOQ Items Table with CLASS, Description, Total Amount and Totals

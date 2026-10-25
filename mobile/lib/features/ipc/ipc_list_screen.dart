@@ -102,6 +102,18 @@ class _IpcListScreenState extends State<IpcListScreen> {
     });
   }
 
+  Future<void> _previewPdf(IpcDocument doc) async {
+    try {
+      await IpcPdfGenerator.showPreview(context, doc);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error previewing document: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   Future<void> _printPdf(IpcDocument doc) async {
     final bytes = await IpcPdfGenerator.generatePdf(doc);
     await Printing.layoutPdf(
@@ -356,120 +368,129 @@ class _IpcListScreenState extends State<IpcListScreen> {
         borderRadius: BorderRadius.circular(12),
         side: const BorderSide(color: Color(0xFFE2E8F0)),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top badges & date row
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0A2540).withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        doc.documentNumber,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF0A2540)),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: statusColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        doc.status.toUpperCase(),
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: statusColor),
-                      ),
-                    ),
-                  ],
-                ),
-                Text(
-                  DateFormat('dd MMM yyyy').format(doc.date),
-                  style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 10),
-
-            // Project Title
-            Text(
-              doc.projectName,
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5, color: Color(0xFF0F172A)),
-            ),
-
-            if (doc.clientName != null && doc.clientName!.isNotEmpty) ...[
-              const SizedBox(height: 4),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => _previewPdf(doc),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Top badges & date row
               Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Icon(Icons.business_rounded, size: 13, color: Color(0xFF64748B)),
-                  const SizedBox(width: 4),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0A2540).withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          doc.documentNumber,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Color(0xFF0A2540)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          doc.status.toUpperCase(),
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: statusColor),
+                        ),
+                      ),
+                    ],
+                  ),
                   Text(
-                    doc.clientName!,
+                    DateFormat('dd MMM yyyy').format(doc.date),
                     style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                   ),
                 ],
               ),
-            ],
 
-            const SizedBox(height: 10),
-            const Divider(height: 1, color: Color(0xFFF1F5F9)),
-            const SizedBox(height: 10),
+              const SizedBox(height: 10),
 
-            // Bottom stats & action buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${doc.items.length} bill rows',
-                      style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
-                    ),
-                    Text(
-                      'BHD ${_fmt.format(doc.totalAmount)}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0A2540)),
-                    ),
-                  ],
-                ),
+              // Project Title
+              Text(
+                doc.projectName,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5, color: Color(0xFF0F172A)),
+              ),
+
+              if (doc.clientName != null && doc.clientName!.isNotEmpty) ...[
+                const SizedBox(height: 4),
                 Row(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    IconButton(
-                      icon: const Icon(Icons.table_chart_rounded, color: Color(0xFF16A34A), size: 20),
-                      tooltip: 'Export Excel (.xlsx)',
-                      onPressed: () => _exportExcel(doc),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.print_rounded, color: Color(0xFF0A2540), size: 20),
-                      tooltip: 'Print / Preview PDF',
-                      onPressed: () => _printPdf(doc),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.edit_outlined, color: Color(0xFF0284C7), size: 20),
-                      tooltip: 'Edit IPC',
-                      onPressed: () => _openCreateEdit(doc),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
-                      tooltip: 'Delete IPC',
-                      onPressed: () => _confirmDelete(doc),
+                    const Icon(Icons.business_rounded, size: 13, color: Color(0xFF64748B)),
+                    const SizedBox(width: 4),
+                    Text(
+                      doc.clientName!,
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF64748B)),
                     ),
                   ],
                 ),
               ],
-            ),
-          ],
+
+              const SizedBox(height: 10),
+              const Divider(height: 1, color: Color(0xFFF1F5F9)),
+              const SizedBox(height: 10),
+
+              // Bottom stats & action buttons
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${doc.items.length} bill rows',
+                        style: const TextStyle(fontSize: 11, color: Color(0xFF94A3B8)),
+                      ),
+                      Text(
+                        'BHD ${_fmt.format(doc.totalAmount)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0A2540)),
+                      ),
+                    ],
+                  ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.visibility_rounded, color: Color(0xFF0A2540), size: 20),
+                        tooltip: 'Preview IPC Document',
+                        onPressed: () => _previewPdf(doc),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.table_chart_rounded, color: Color(0xFF16A34A), size: 20),
+                        tooltip: 'Export Excel (.xlsx)',
+                        onPressed: () => _exportExcel(doc),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.print_rounded, color: Color(0xFF64748B), size: 20),
+                        tooltip: 'Print PDF',
+                        onPressed: () => _printPdf(doc),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined, color: Color(0xFF0284C7), size: 20),
+                        tooltip: 'Edit IPC',
+                        onPressed: () => _openCreateEdit(doc),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
+                        tooltip: 'Delete IPC',
+                        onPressed: () => _confirmDelete(doc),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

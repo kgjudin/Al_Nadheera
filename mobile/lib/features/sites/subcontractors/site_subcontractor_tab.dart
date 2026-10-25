@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../services/api_service.dart';
+import '../../../services/invoice_number_service.dart';
 import '../../../models/financial_models.dart';
 
 class SiteSubcontractorTab extends StatefulWidget {
@@ -33,11 +34,17 @@ class _SiteSubcontractorTabState extends State<SiteSubcontractorTab> {
   void _showAddDialog() {
     final formKey = GlobalKey<FormState>();
     final supplierCtrl = TextEditingController();
-    final invoiceNoCtrl = TextEditingController();
+    DateTime entryDate = DateTime.now();
+    final initialInvoiceNo = InvoiceNumberService.generateInitialSubcontractorInvoiceNumber(entryDate);
+    final invoiceNoCtrl = TextEditingController(text: initialInvoiceNo);
+    InvoiceNumberService.fetchNextSubcontractorInvoiceNumber(siteId: widget.siteId, date: entryDate).then((newNumber) {
+      if (invoiceNoCtrl.text == initialInvoiceNo || invoiceNoCtrl.text.isEmpty) {
+        invoiceNoCtrl.text = newNumber;
+      }
+    });
     final invoiceAmountCtrl = TextEditingController();
     final vatAmountCtrl = TextEditingController();
     final remarksCtrl = TextEditingController();
-    DateTime entryDate = DateTime.now();
     final dateFormat = DateFormat('yyyy-MM-dd');
 
     showDialog(
@@ -90,9 +97,23 @@ class _SiteSubcontractorTabState extends State<SiteSubcontractorTab> {
                       // 3. Invoice Number
                       TextFormField(
                         controller: invoiceNoCtrl,
-                        decoration: const InputDecoration(
+                        decoration: InputDecoration(
                           labelText: 'Invoice Number',
-                          border: OutlineInputBorder(),
+                          hintText: 'e.g. ${InvoiceNumberService.generateInitialSubcontractorInvoiceNumber(entryDate)}',
+                          border: const OutlineInputBorder(),
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.refresh_rounded, size: 18),
+                            tooltip: 'Regenerate Invoice Number',
+                            onPressed: () async {
+                              final next = await InvoiceNumberService.fetchNextSubcontractorInvoiceNumber(
+                                siteId: widget.siteId,
+                                date: entryDate,
+                              );
+                              setDialogState(() {
+                                invoiceNoCtrl.text = next;
+                              });
+                            },
+                          ),
                         ),
                       ),
                       const SizedBox(height: 14),
@@ -232,7 +253,7 @@ class _SiteSubcontractorTabState extends State<SiteSubcontractorTab> {
                         children: [
                           const Text('ACTIVE VENDORS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
                           const SizedBox(height: 4),
-                          Text('${list.isNotEmpty ? list.length : 3} Entities', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0A2540))),
+                          Text('${list.length} Entities', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0A2540))),
                         ],
                       ),
                     ),
@@ -247,7 +268,7 @@ class _SiteSubcontractorTabState extends State<SiteSubcontractorTab> {
                         children: [
                           const Text('COMMITTED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
                           const SizedBox(height: 4),
-                          Text(currencyFormat.format(totalCommitted > 0 ? totalCommitted : 5999), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0B5ED7))),
+                          Text(currencyFormat.format(totalCommitted), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF0B5ED7))),
                         ],
                       ),
                     ),
@@ -262,7 +283,7 @@ class _SiteSubcontractorTabState extends State<SiteSubcontractorTab> {
                         children: [
                           const Text('RETENTION (10%)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
                           const SizedBox(height: 4),
-                          Text(currencyFormat.format(retentionAmount > 0 ? retentionAmount : 599.90), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF137333))),
+                          Text(currencyFormat.format(retentionAmount), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF137333))),
                         ],
                       ),
                     ),
@@ -276,15 +297,37 @@ class _SiteSubcontractorTabState extends State<SiteSubcontractorTab> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('CLAIMS & CERTIFICATES', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)),
-                  Text('Showing ${list.isNotEmpty ? list.length : 3} records', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+                  Text('Showing ${list.length} records', style: TextStyle(fontSize: 11, color: Colors.grey[600])),
                 ],
               ),
               const SizedBox(height: 10),
 
               if (list.isEmpty) ...[
-                _buildSubcontractorCard('R', 'Rast', 'Excavation & Ground Prep', 5999.00, '1911', '2026-09-24', '✔ Certified', const Color(0xFFE6F4EA), const Color(0xFF137333), 'Milestone: Phase 1 Ground Prep', vatAmount: 300.0),
-                _buildSubcontractorCard('AM', 'Al-Manama Dewatering Co.', 'Sub-Surface Drainage', 3200.00, '1908', '2026-09-20', 'Under Review', const Color(0xFFFFF7ED), const Color(0xFFC2410C), 'Deep Well Dewatering (80%)', vatAmount: 160.0),
-                _buildSubcontractorCard('GP', 'Gulf Piling & Geotech', 'Foundation & Shoring Works', 12500.00, '1899', '2026-09-18', '✔ Approved', const Color(0xFFE6F4EA), const Color(0xFF137333), 'Bored Cast Piling QA Passed', vatAmount: 625.0),
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Icon(Icons.engineering_outlined, size: 48, color: Colors.grey[400]),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'No Subcontractor Claims Yet',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0A2540)),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Tap the button below to add your first subcontractor or trade claim.',
+                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ] else
                 ...list.map(
                   (item) => _buildSubcontractorCard(

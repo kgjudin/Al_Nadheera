@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:uuid/uuid.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../../services/camera/app_camera_service.dart';
 
 class SiteChatScreen extends StatefulWidget {
   final String siteId;
@@ -29,6 +30,7 @@ class _SiteChatScreenState extends State<SiteChatScreen> {
   String? _myUserId;
   bool _isUploading = false;
   String _uploadStatus = '';
+  bool _isSending = false;
 
   @override
   void initState() {
@@ -36,12 +38,26 @@ class _SiteChatScreenState extends State<SiteChatScreen> {
     _myUserId = _supabase.auth.currentUser?.id;
     _markSiteAsRead();
     
-    // Listen to real-time changes
+    // Listen to real-time changes with deduplication
     _messagesStream = _supabase
         .from('chat_messages')
         .stream(primaryKey: ['id'])
         .eq('site_id', widget.siteId)
-        .order('created_at', ascending: true);
+        .order('created_at', ascending: true)
+        .map((messages) {
+          final seenIds = <String>{};
+          final unique = <Map<String, dynamic>>[];
+          for (final msg in messages) {
+            final id = msg['id']?.toString() ?? '';
+            if (id.isNotEmpty) {
+              if (!seenIds.add(id)) {
+                continue; // Skip duplicate
+              }
+            }
+            unique.add(msg);
+          }
+          return unique;
+        });
   }
 
   Future<void> _markSiteAsRead() async {
@@ -57,14 +73,18 @@ class _SiteChatScreenState extends State<SiteChatScreen> {
     String? fileName,
     int? fileSize,
   }) async {
+    if (_isSending) return;
     final text = _msgController.text.trim();
     if (text.isEmpty && mediaUrl == null) return;
     
+    _isSending = true;
     _msgController.clear();
     
     try {
       final type = messageType ?? (mediaUrl != null ? 'image' : 'text');
+      final clientMsgId = const Uuid().v4();
       await _supabase.from('chat_messages').insert({
+        'id': clientMsgId,
         'site_id': widget.siteId,
         'sender_id': _myUserId,
         'message': text.isNotEmpty ? text : (type == 'image' ? 'Photo' : (fileName ?? 'Attachment')),
@@ -84,6 +104,8 @@ class _SiteChatScreenState extends State<SiteChatScreen> {
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    } finally {
+      _isSending = false;
     }
   }
 
@@ -120,7 +142,13 @@ class _SiteChatScreenState extends State<SiteChatScreen> {
 
   Future<void> _pickAndUploadImage(ImageSource source) async {
     try {
-      final XFile? image = await _picker.pickImage(source: source, imageQuality: 80);
+      XFile? image;
+      if (source == ImageSource.camera) {
+        final photo = await AppCameraService.capturePhoto(context);
+        image = photo?.toXFile();
+      } else {
+        image = await _picker.pickImage(source: source, imageQuality: 80);
+      }
       if (image == null) return;
 
       setState(() {
@@ -273,12 +301,22 @@ class _SiteChatScreenState extends State<SiteChatScreen> {
                   return Center(child: Text('Error: ${snapshot.error}'));
                 }
                 
-                final messages = snapshot.data ?? [];
-                if (messages.isNotEmpty) {
+                final rawMessages = snapshot.data ?? [];
+                if (rawMessages.isNotEmpty) {
                   WidgetsBinding.instance.addPostFrameCallback((_) {
                     _markSiteAsRead();
                   });
                 }
+                final seenIds = <String>{};
+                final messages = <Map<String, dynamic>>[];
+                for (final m in rawMessages) {
+                  final id = m['id']?.toString() ?? '';
+                  if (id.isNotEmpty && !seenIds.add(id)) {
+                    continue;
+                  }
+                  messages.add(m);
+                }
+
                 if (messages.isEmpty) {
                   return const Center(child: Text('No messages yet. Start the conversation!'));
                 }

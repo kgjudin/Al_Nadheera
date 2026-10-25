@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/ipc_model.dart';
 import '../../models/product_model.dart';
 import '../../services/api_service.dart';
+import '../../services/invoice_number_service.dart';
 import 'services/ipc_excel_generator.dart';
 import 'services/ipc_pdf_generator.dart';
 
@@ -16,6 +17,8 @@ class _IpcSectionItem {
   final TextEditingController rateCtrl;
   String? productId;
   bool isCustomDescription;
+  bool isHighlighted;
+  String? highlightColor;
 
   _IpcSectionItem({
     String itemNumber = '',
@@ -25,6 +28,8 @@ class _IpcSectionItem {
     String rate = '',
     this.productId,
     this.isCustomDescription = false,
+    this.isHighlighted = false,
+    this.highlightColor,
   })  : itemNumberCtrl = TextEditingController(text: itemNumber),
         descriptionCtrl = TextEditingController(text: description),
         unitCtrl = TextEditingController(text: unit),
@@ -90,6 +95,62 @@ class _IpcSectionGroup {
   }
 }
 
+class _IpcDeductionRow {
+  final TextEditingController itemNoCtrl;
+  final TextEditingController descriptionCtrl;
+  final TextEditingController unitCtrl;
+  final TextEditingController contractRateCtrl;
+  final TextEditingController prevQtyCtrl;
+  final TextEditingController prevAmountCtrl;
+  final TextEditingController thisPeriodQtyCtrl;
+  final TextEditingController thisPeriodAmountCtrl;
+  final TextEditingController cumulativeQtyCtrl;
+  final TextEditingController cumulativeAmountCtrl;
+  final TextEditingController remarksCtrl;
+  bool isHighlighted;
+  String? highlightColor;
+
+  _IpcDeductionRow({
+    String itemNumber = '',
+    String description = '',
+    String unit = '',
+    String contractRate = '',
+    String prevQty = '',
+    String prevAmount = '',
+    String thisPeriodQty = '',
+    String thisPeriodAmount = '',
+    String cumulativeQty = '',
+    String cumulativeAmount = '',
+    String remarks = '',
+    this.isHighlighted = false,
+    this.highlightColor,
+  })  : itemNoCtrl = TextEditingController(text: itemNumber),
+        descriptionCtrl = TextEditingController(text: description),
+        unitCtrl = TextEditingController(text: unit),
+        contractRateCtrl = TextEditingController(text: contractRate),
+        prevQtyCtrl = TextEditingController(text: prevQty),
+        prevAmountCtrl = TextEditingController(text: prevAmount),
+        thisPeriodQtyCtrl = TextEditingController(text: thisPeriodQty),
+        thisPeriodAmountCtrl = TextEditingController(text: thisPeriodAmount),
+        cumulativeQtyCtrl = TextEditingController(text: cumulativeQty),
+        cumulativeAmountCtrl = TextEditingController(text: cumulativeAmount),
+        remarksCtrl = TextEditingController(text: remarks);
+
+  void dispose() {
+    itemNoCtrl.dispose();
+    descriptionCtrl.dispose();
+    unitCtrl.dispose();
+    contractRateCtrl.dispose();
+    prevQtyCtrl.dispose();
+    prevAmountCtrl.dispose();
+    thisPeriodQtyCtrl.dispose();
+    thisPeriodAmountCtrl.dispose();
+    cumulativeQtyCtrl.dispose();
+    cumulativeAmountCtrl.dispose();
+    remarksCtrl.dispose();
+  }
+}
+
 class CreateEditIpcScreen extends StatefulWidget {
   final IpcDocument? existingDocument;
 
@@ -107,10 +168,14 @@ class _CreateEditIpcScreenState extends State<CreateEditIpcScreen> {
   final TextEditingController _projectCtrl = TextEditingController();
   final TextEditingController _docNumberCtrl = TextEditingController();
   final TextEditingController _clientCtrl = TextEditingController();
+  final TextEditingController _mainContractorCtrl = TextEditingController();
+  final TextEditingController _subContractorCtrl = TextEditingController();
   DateTime _selectedDate = DateTime.now();
   String _selectedStatus = 'Draft';
 
   final List<_IpcSectionGroup> _sections = [];
+  bool _hasDeductionsEnabled = false;
+  final List<_IpcDeductionRow> _deductions = [];
   bool _isSaving = false;
 
   List<Product> _allCatalogProducts = [];
@@ -127,8 +192,35 @@ class _CreateEditIpcScreenState extends State<CreateEditIpcScreen> {
       _projectCtrl.text = doc.projectName;
       _docNumberCtrl.text = doc.documentNumber;
       _clientCtrl.text = doc.clientName ?? '';
+      if (doc.mainContractor.isNotEmpty) {
+        _mainContractorCtrl.text = doc.mainContractor;
+      }
+      if (doc.subContractor.isNotEmpty) {
+        _subContractorCtrl.text = doc.subContractor;
+      }
       _selectedDate = doc.date;
       _selectedStatus = doc.status;
+
+      if (doc.hasDeductions) {
+        _hasDeductionsEnabled = true;
+        for (final d in doc.deductions) {
+          _deductions.add(_IpcDeductionRow(
+            itemNumber: d.itemNumber ?? '',
+            description: d.description,
+            unit: d.unit ?? '',
+            contractRate: d.contractRate != null && d.contractRate! > 0 ? d.contractRate!.toStringAsFixed(3) : '',
+            prevQty: d.previousQuantity != null && d.previousQuantity! > 0 ? d.previousQuantity!.toStringAsFixed(3) : '',
+            prevAmount: d.previousAmount != null && d.previousAmount! > 0 ? d.previousAmount!.toStringAsFixed(3) : '',
+            thisPeriodQty: d.thisPeriodQuantity != null && d.thisPeriodQuantity! > 0 ? d.thisPeriodQuantity!.toStringAsFixed(3) : '',
+            thisPeriodAmount: d.thisPeriodAmount != null && d.thisPeriodAmount! > 0 ? d.thisPeriodAmount!.toStringAsFixed(3) : '',
+            cumulativeQty: d.cumulativeQuantity != null && d.cumulativeQuantity! > 0 ? d.cumulativeQuantity!.toStringAsFixed(3) : '',
+            cumulativeAmount: d.cumulativeAmount != null && d.cumulativeAmount! > 0 ? d.cumulativeAmount!.toStringAsFixed(3) : '',
+            remarks: d.remarks ?? '',
+            isHighlighted: d.isHighlighted,
+            highlightColor: d.highlightColor,
+          ));
+        }
+      }
 
       String? curClass;
       String? curSub;
@@ -173,13 +265,23 @@ class _CreateEditIpcScreenState extends State<CreateEditIpcScreen> {
             quantity: item.quantity > 0 ? item.quantity.toStringAsFixed(3) : '',
             rate: item.rate > 0 ? item.rate.toStringAsFixed(3) : '',
             productId: item.productId,
+            isHighlighted: item.isHighlighted,
+            highlightColor: item.highlightColor,
           ));
         }
       }
     } else {
       _projectCtrl.text = '';
-      _docNumberCtrl.text = '';
+      final initialIpcNo = InvoiceNumberService.generateInitialIpcNumber(_selectedDate);
+      _docNumberCtrl.text = initialIpcNo;
       _clientCtrl.text = '';
+      InvoiceNumberService.fetchNextIpcNumber(date: _selectedDate).then((newNumber) {
+        if (mounted && (_docNumberCtrl.text == initialIpcNo || _docNumberCtrl.text.isEmpty)) {
+          setState(() {
+            _docNumberCtrl.text = newNumber;
+          });
+        }
+      });
     }
 
     _loadCatalogData();
@@ -190,8 +292,13 @@ class _CreateEditIpcScreenState extends State<CreateEditIpcScreen> {
     _projectCtrl.dispose();
     _docNumberCtrl.dispose();
     _clientCtrl.dispose();
+    _mainContractorCtrl.dispose();
+    _subContractorCtrl.dispose();
     for (final s in _sections) {
       s.dispose();
+    }
+    for (final d in _deductions) {
+      d.dispose();
     }
     super.dispose();
   }
@@ -417,7 +524,33 @@ class _CreateEditIpcScreenState extends State<CreateEditIpcScreen> {
           className: cName.isNotEmpty ? cName : null,
           submoduleName: sName.isNotEmpty ? sName : null,
           productId: it.productId,
+          isHighlighted: it.isHighlighted,
+          highlightColor: it.highlightColor,
           sortOrder: sortOrder++,
+        ));
+      }
+    }
+
+    final deductionItems = <IpcDeductionItem>[];
+    if (_hasDeductionsEnabled) {
+      int dOrder = 0;
+      for (final d in _deductions) {
+        if (d.descriptionCtrl.text.trim().isEmpty && d.itemNoCtrl.text.trim().isEmpty) continue;
+        deductionItems.add(IpcDeductionItem(
+          itemNumber: d.itemNoCtrl.text.trim().isNotEmpty ? d.itemNoCtrl.text.trim() : null,
+          description: d.descriptionCtrl.text.trim(),
+          unit: d.unitCtrl.text.trim().isNotEmpty ? d.unitCtrl.text.trim() : null,
+          contractRate: double.tryParse(d.contractRateCtrl.text.trim().replaceAll(',', '')),
+          previousQuantity: double.tryParse(d.prevQtyCtrl.text.trim().replaceAll(',', '')),
+          previousAmount: double.tryParse(d.prevAmountCtrl.text.trim().replaceAll(',', '')),
+          thisPeriodQuantity: double.tryParse(d.thisPeriodQtyCtrl.text.trim().replaceAll(',', '')),
+          thisPeriodAmount: double.tryParse(d.thisPeriodAmountCtrl.text.trim().replaceAll(',', '')),
+          cumulativeQuantity: double.tryParse(d.cumulativeQtyCtrl.text.trim().replaceAll(',', '')),
+          cumulativeAmount: double.tryParse(d.cumulativeAmountCtrl.text.trim().replaceAll(',', '')),
+          remarks: d.remarksCtrl.text.trim().isNotEmpty ? d.remarksCtrl.text.trim() : null,
+          isHighlighted: d.isHighlighted,
+          highlightColor: d.highlightColor,
+          sortOrder: dOrder++,
         ));
       }
     }
@@ -427,11 +560,31 @@ class _CreateEditIpcScreenState extends State<CreateEditIpcScreen> {
       documentNumber: _docNumberCtrl.text.trim(),
       projectName: _projectCtrl.text.trim(),
       clientName: _clientCtrl.text.trim().isEmpty ? null : _clientCtrl.text.trim(),
+      mainContractor: _mainContractorCtrl.text.trim(),
+      subContractor: _subContractorCtrl.text.trim(),
       date: _selectedDate,
       status: _selectedStatus,
       totalAmount: _totalAmount,
       items: flatItems,
+      deductions: deductionItems,
     );
+  }
+
+  void _addNewDeductionRow() {
+    setState(() {
+      _hasDeductionsEnabled = true;
+      _deductions.add(_IpcDeductionRow());
+    });
+  }
+
+  void _removeDeductionRow(int index) {
+    setState(() {
+      final removed = _deductions.removeAt(index);
+      removed.dispose();
+      if (_deductions.isEmpty) {
+        _hasDeductionsEnabled = false;
+      }
+    });
   }
 
   Future<void> _saveIpc() async {
@@ -494,6 +647,24 @@ class _CreateEditIpcScreenState extends State<CreateEditIpcScreen> {
     }
   }
 
+  bool _isPreviewing = false;
+
+  Future<void> _showPdfPreview() async {
+    setState(() => _isPreviewing = true);
+    try {
+      final doc = _buildCurrentDocument();
+      await IpcPdfGenerator.showPreview(context, doc);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error generating preview: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isPreviewing = false);
+    }
+  }
+
   Future<void> _previewAndPrintPdf() async {
     final doc = _buildCurrentDocument();
     final pdfBytes = await IpcPdfGenerator.generatePdf(doc);
@@ -536,13 +707,18 @@ class _CreateEditIpcScreenState extends State<CreateEditIpcScreen> {
         elevation: 1,
         actions: [
           IconButton(
+            icon: const Icon(Icons.visibility_rounded, color: Color(0xFF0A2540)),
+            tooltip: 'Preview IPC Document',
+            onPressed: (_isSaving || _isPreviewing) ? null : _showPdfPreview,
+          ),
+          IconButton(
             icon: const Icon(Icons.table_chart_rounded, color: Color(0xFF16A34A)),
             tooltip: 'Export Excel (.xlsx)',
             onPressed: _exportExcel,
           ),
           IconButton(
-            icon: const Icon(Icons.print_rounded, color: Color(0xFF0A2540)),
-            tooltip: 'Print / Preview PDF',
+            icon: const Icon(Icons.print_rounded, color: Color(0xFF64748B)),
+            tooltip: 'Print PDF',
             onPressed: _previewAndPrintPdf,
           ),
           const SizedBox(width: 8),
@@ -640,11 +816,25 @@ class _CreateEditIpcScreenState extends State<CreateEditIpcScreen> {
                         Expanded(
                           child: TextFormField(
                             controller: _docNumberCtrl,
-                            decoration: const InputDecoration(
+                            decoration: InputDecoration(
                               labelText: 'Document / IPC # *',
-                              hintText: 'e.g. IPC-2026-001',
-                              prefixIcon: Icon(Icons.tag_rounded),
-                              border: OutlineInputBorder(),
+                              hintText: 'e.g. ${InvoiceNumberService.generateInitialIpcNumber(_selectedDate)}',
+                              prefixIcon: const Icon(Icons.tag_rounded),
+                              suffixIcon: IconButton(
+                                icon: const Icon(Icons.refresh_rounded, size: 18),
+                                tooltip: 'Regenerate Document / IPC #',
+                                onPressed: () async {
+                                  final next = await InvoiceNumberService.fetchNextIpcNumber(
+                                    date: _selectedDate,
+                                  );
+                                  if (mounted) {
+                                    setState(() {
+                                      _docNumberCtrl.text = next;
+                                    });
+                                  }
+                                },
+                              ),
+                              border: const OutlineInputBorder(),
                               isDense: true,
                             ),
                             validator: (v) => (v == null || v.trim().isEmpty) ? 'IPC # required' : null,
@@ -747,6 +937,11 @@ class _CreateEditIpcScreenState extends State<CreateEditIpcScreen> {
 
             const SizedBox(height: 20),
 
+            // Material Deduction Section (Optional)
+            _buildMaterialDeductionSection(),
+
+            const SizedBox(height: 16),
+
             // Grand Total Summary Box
             Card(
               elevation: 0,
@@ -782,8 +977,450 @@ class _CreateEditIpcScreenState extends State<CreateEditIpcScreen> {
                 ),
               ),
             ),
+
+            const SizedBox(height: 24),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildMaterialDeductionSection() {
+    if (!_hasDeductionsEnabled) {
+      return Container(
+        margin: const EdgeInsets.only(top: 8, bottom: 4),
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: const Color(0xFFB45309), // amber-700
+            side: const BorderSide(color: Color(0xFFF59E0B), width: 1.5),
+            backgroundColor: const Color(0xFFFFFBEB),
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          onPressed: _addNewDeductionRow,
+          icon: const Icon(Icons.playlist_remove_rounded, size: 22, color: Color(0xFFD97706)),
+          label: const Text(
+            '+ Add Material Deduction Sheet (Optional)',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      elevation: 0,
+      color: Colors.white,
+      margin: const EdgeInsets.only(top: 8, bottom: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFF59E0B), width: 1.5),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header Row
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFEF3C7),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.playlist_remove_rounded, color: Color(0xFFD97706), size: 22),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Text(
+                            'Material Deduction Sheet',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0A2540),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF3C7),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(color: const Color(0xFFF59E0B)),
+                            ),
+                            child: Text(
+                              '${_deductions.length} items',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFB45309),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Text(
+                        'Will be printed on a separate landscape PDF page as an annexure',
+                        style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_sweep_rounded, color: Color(0xFFEF4444)),
+                  tooltip: 'Remove Material Deduction Sheet',
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (ctx) => AlertDialog(
+                        title: const Text('Remove Material Deduction Sheet?'),
+                        content: const Text(
+                          'This will clear all deduction items and remove the material deduction page from the PDF.',
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(ctx),
+                            child: const Text('Cancel'),
+                          ),
+                          TextButton(
+                            style: TextButton.styleFrom(foregroundColor: Colors.red),
+                            onPressed: () {
+                              Navigator.pop(ctx);
+                              setState(() {
+                                for (final d in _deductions) {
+                                  d.dispose();
+                                }
+                                _deductions.clear();
+                                _hasDeductionsEnabled = false;
+                              });
+                            },
+                            child: const Text('Remove'),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 14),
+            const Divider(height: 1),
+            const SizedBox(height: 14),
+
+            // Main Contractor & Sub Contractor Fields
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _mainContractorCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Main Contractor',
+                      hintText: 'e.g. KINGDOM ASPHALT CO WLL',
+                      prefixIcon: Icon(Icons.apartment_rounded, size: 18),
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextFormField(
+                    controller: _subContractorCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Sub Contractor',
+                      hintText: 'e.g. AL NADEERA CONTRACTING WLL',
+                      prefixIcon: Icon(Icons.handshake_rounded, size: 18),
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+
+            // Deduction Item Cards List
+            for (int i = 0; i < _deductions.length; i++)
+              _buildDeductionItemCard(_deductions[i], i),
+
+            const SizedBox(height: 8),
+
+            // Add Deduction Item Button
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: const Color(0xFFD97706),
+                  side: const BorderSide(color: Color(0xFFD97706)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: _addNewDeductionRow,
+                icon: const Icon(Icons.add_circle_outline_rounded, size: 18),
+                label: const Text(
+                  '+ Add Deduction Item',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeductionItemCard(_IpcDeductionRow row, int index) {
+    final isHighlighted = row.isHighlighted;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isHighlighted ? const Color(0xFFFEF9C3) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isHighlighted ? const Color(0xFFFACC15) : const Color(0xFFE2E8F0),
+          width: isHighlighted ? 1.5 : 1.0,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Row Header: #Index, Item No., Highlight Toggle, Delete
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                decoration: BoxDecoration(
+                  color: isHighlighted ? const Color(0xFFFACC15) : const Color(0xFFE2E8F0),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '#${index + 1}',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 100,
+                child: TextFormField(
+                  controller: row.itemNoCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Item No.',
+                    hintText: 'e.g. 21',
+                    isDense: true,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                    border: OutlineInputBorder(),
+                  ),
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: Icon(
+                  Icons.highlight_rounded,
+                  size: 20,
+                  color: isHighlighted ? const Color(0xFFD97706) : const Color(0xFF94A3B8),
+                ),
+                tooltip: isHighlighted ? 'Remove Yellow Highlight' : 'Highlight Row (Yellow)',
+                visualDensity: VisualDensity.compact,
+                onPressed: () {
+                  setState(() {
+                    row.isHighlighted = !row.isHighlighted;
+                  });
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline_rounded, size: 20, color: Color(0xFFEF4444)),
+                tooltip: 'Delete Item',
+                visualDensity: VisualDensity.compact,
+                onPressed: () => _removeDeductionRow(index),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // Description & Unit & Rate
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 3,
+                child: TextFormField(
+                  controller: row.descriptionCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Item Description *',
+                    hintText: 'e.g. 1000mm Dia GRP Pipes / Machinery deduction',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  style: const TextStyle(fontSize: 12.5),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 75,
+                child: TextFormField(
+                  controller: row.unitCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Unit',
+                    hintText: 'm, nrs, etc.',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  style: const TextStyle(fontSize: 12),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 95,
+                child: TextFormField(
+                  controller: row.contractRateCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Rate (BD)',
+                    hintText: '60.000',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: const TextStyle(fontSize: 12),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // Previous & This Period Fields
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: row.prevQtyCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Prev Qty',
+                    hintText: '0.000',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: const TextStyle(fontSize: 12),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: TextFormField(
+                  controller: row.prevAmountCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Prev BD',
+                    hintText: '0.000',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: const TextStyle(fontSize: 12),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextFormField(
+                  controller: row.thisPeriodQtyCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'This Qty',
+                    hintText: '58.500',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: const TextStyle(fontSize: 12),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: TextFormField(
+                  controller: row.thisPeriodAmountCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'This BD',
+                    hintText: '3,510.000',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: const TextStyle(fontSize: 12),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          // Cumulative & Remarks
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: row.cumulativeQtyCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Cumul. Qty',
+                    hintText: 'Manual entry',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: const TextStyle(fontSize: 12),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: TextFormField(
+                  controller: row.cumulativeAmountCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Cumul. BD',
+                    hintText: 'Manual entry',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: const TextStyle(fontSize: 12),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 2,
+                child: TextFormField(
+                  controller: row.remarksCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Remarks / as per site',
+                    hintText: 'e.g. as per site',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  style: const TextStyle(fontSize: 12),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -1062,13 +1699,18 @@ class _CreateEditIpcScreenState extends State<CreateEditIpcScreen> {
       selectedProdId = matchingProducts.firstWhere((p) => p.name.trim().toLowerCase() == it.description.trim().toLowerCase()).id;
     }
 
+    final isHighlighted = it.isHighlighted;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFFF8FAFC),
+        color: isHighlighted ? const Color(0xFFFEF9C3) : const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(
+          color: isHighlighted ? const Color(0xFFFACC15) : const Color(0xFFE2E8F0),
+          width: isHighlighted ? 1.5 : 1.0,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1095,10 +1737,54 @@ class _CreateEditIpcScreenState extends State<CreateEditIpcScreen> {
               ),
               const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  'Specification #${itIdx + 1}',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+                child: Row(
+                  children: [
+                    Text(
+                      'Specification #${itIdx + 1}',
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF475569)),
+                    ),
+                    if (isHighlighted) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFACC15),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.highlight_rounded, size: 11, color: Color(0xFF713F12)),
+                            SizedBox(width: 3),
+                            Text(
+                              'HIGHLIGHTED',
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFF713F12),
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
+              ),
+              IconButton(
+                icon: Icon(
+                  Icons.highlight_rounded,
+                  size: 20,
+                  color: isHighlighted ? const Color(0xFFD97706) : const Color(0xFF94A3B8),
+                ),
+                tooltip: isHighlighted ? 'Remove Highlight' : 'Highlight Row (Yellow)',
+                visualDensity: VisualDensity.compact,
+                onPressed: () {
+                  setState(() {
+                    it.isHighlighted = !it.isHighlighted;
+                  });
+                },
               ),
               IconButton(
                 icon: Icon(

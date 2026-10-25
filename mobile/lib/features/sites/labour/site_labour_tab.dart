@@ -222,7 +222,7 @@ class _SiteLabourTabState extends State<SiteLabourTab> {
                         children: [
                           const Text('HEADCOUNT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
                           const SizedBox(height: 4),
-                          Text('${totalHeadcount > 0 ? totalHeadcount : 10} Workers', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0A2540))),
+                          Text('$totalHeadcount Workers', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0A2540))),
                         ],
                       ),
                     ),
@@ -237,7 +237,7 @@ class _SiteLabourTabState extends State<SiteLabourTab> {
                         children: [
                           const Text('SHIFT COST', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
                           const SizedBox(height: 4),
-                          Text(currencyFormat.format(totalShiftCost > 0 ? totalShiftCost : 3850), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0B5ED7))),
+                          Text(currencyFormat.format(totalShiftCost), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0B5ED7))),
                         ],
                       ),
                     ),
@@ -252,7 +252,7 @@ class _SiteLabourTabState extends State<SiteLabourTab> {
                         children: [
                           const Text('SHIFT AVG', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
                           const SizedBox(height: 4),
-                          const Text('8.0 hrs', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF137333))),
+                          Text('${list.isEmpty ? 0.0 : 8.0} hrs', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF137333))),
                         ],
                       ),
                     ),
@@ -296,15 +296,37 @@ class _SiteLabourTabState extends State<SiteLabourTab> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('LABOUR LOGS', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5)),
-                  const Text('Sort: By Trade ˅', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF0B5ED7))),
+                  Text('Showing ${list.length} records', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
                 ],
               ),
               const SizedBox(height: 10),
 
               if (list.isEmpty) ...[
-                _buildLabourCard('MASONRY & HELPERS', 'Rest ($dateStr)', 'Day Shift • 07:00 - 15:00 (8 hrs)', 3, 400.0, 1200.0, 0.0, true),
-                _buildLabourCard('STEEL WORK', 'Steel Fixers & Riggers', 'Foundation Slab C • 8.0 hrs', 5, 350.0, 1750.0, 0.0, true),
-                _buildLabourCard('MEP', 'Electricians & Technicians', 'Conduit Rough in Level 1 • 8.0 hrs', 2, 450.0, 900.0, 0.0, false),
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Icon(Icons.people_outline, size: 48, color: Colors.grey[400]),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'No Labour Logs for this Date',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0A2540)),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Tap the button below to log trade workforce, hours, and rates.',
+                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ] else
                 ...list.map(
                   (item) => _buildLabourCard(

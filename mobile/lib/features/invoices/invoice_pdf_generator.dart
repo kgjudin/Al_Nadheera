@@ -9,10 +9,12 @@ class InvoicePdfGenerator {
   static Future<Uint8List> generateInvoicePdf(
     Invoice invoice, {
     DocumentTemplate? customTemplate,
+    bool? showSealSignatureArea,
   }) async {
     return B2bQuotationPdfGenerator.generatePdf(
       invoice,
       customTemplate: customTemplate,
+      showSealSignatureArea: showSealSignatureArea,
     );
   }
 }

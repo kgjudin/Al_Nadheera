@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import '../../services/api_service.dart';
 import '../../services/permission_service.dart';
+import '../../services/camera/app_camera_service.dart';
 import '../../models/employee_model.dart';
 import '../../models/role_model.dart';
 import '../../models/site_model.dart';
@@ -140,13 +141,19 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
 
   Future<void> _pickAndUploadPhoto(ImageSource source) async {
     try {
-      final picker = ImagePicker();
-      final pickedFile = await picker.pickImage(
-        source: source,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 85,
-      );
+      XFile? pickedFile;
+      if (source == ImageSource.camera) {
+        final photo = await AppCameraService.capturePhoto(context, preferredCameraDevice: 'front');
+        pickedFile = photo?.toXFile();
+      } else {
+        final picker = ImagePicker();
+        pickedFile = await picker.pickImage(
+          source: source,
+          maxWidth: 800,
+          maxHeight: 800,
+          imageQuality: 85,
+        );
+      }
       if (pickedFile == null) return;
 
       setState(() => _isUploadingPhoto = true);

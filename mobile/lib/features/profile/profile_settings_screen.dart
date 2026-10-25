@@ -5,6 +5,7 @@ import '../auth/login_screen.dart';
 import '../chat/services/presence_service.dart';
 import '../roles/role_management_screen.dart';
 import '../../services/permission_service.dart';
+import '../../services/camera/app_camera_service.dart';
 import '../../core/constants/app_modules.dart';
 
 
@@ -88,12 +89,18 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     if (_userId == null) return;
 
     try {
-      final pickedFile = await _picker.pickImage(
-        source: source,
-        maxWidth: 800,
-        maxHeight: 800,
-        imageQuality: 85,
-      );
+      XFile? pickedFile;
+      if (source == ImageSource.camera) {
+        final photo = await AppCameraService.capturePhoto(context, preferredCameraDevice: 'front');
+        pickedFile = photo?.toXFile();
+      } else {
+        pickedFile = await _picker.pickImage(
+          source: source,
+          maxWidth: 800,
+          maxHeight: 800,
+          imageQuality: 85,
+        );
+      }
 
       if (pickedFile == null) return;
 

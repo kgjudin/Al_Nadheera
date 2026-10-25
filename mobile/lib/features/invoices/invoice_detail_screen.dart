@@ -49,6 +49,41 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
     } catch (_) {}
   }
 
+  Future<void> _toggleSealSignatureArea(bool enabled) async {
+    final updatedSourceConfig = Map<String, dynamic>.from(_invoice.sourceConfig ?? {});
+    updatedSourceConfig['showSealSignatureArea'] = enabled;
+
+    setState(() {
+      _invoice = _invoice.copyWith(
+        showSealSignatureArea: enabled,
+        sourceConfig: updatedSourceConfig,
+      );
+    });
+
+    try {
+      await _supabase
+          .from('invoices')
+          .update({'source_config': updatedSourceConfig})
+          .eq('id', _invoice.id);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              enabled
+                  ? 'Seal & Signature area enabled for PDF & Print'
+                  : 'Seal & Signature area disabled',
+            ),
+            backgroundColor: enabled ? const Color(0xFF0A2540) : const Color(0xFF64748B),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error updating seal & signature area config: $e');
+    }
+  }
+
   Future<void> _toggleStatus() async {
     final newStatus = _invoice.isPaid ? 'Pending' : 'Paid';
     setState(() => _isLoading = true);
@@ -580,6 +615,69 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                     ),
                   ),
 
+                  // 8.5 Seal & Signature Area (Matching Official Format)
+                  const SizedBox(height: 14),
+                  if (_invoice.showSealSignatureArea) ...[
+                    _buildPhysicalSealAndSignatureCard(),
+                    const SizedBox(height: 6),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton.icon(
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFFD93025),
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                        onPressed: _isLoading ? null : () => _toggleSealSignatureArea(false),
+                        icon: const Icon(Icons.remove_circle_outline, size: 15),
+                        label: const Text('Disable Seal & Signature Box', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                  ] else ...[
+                    Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                        borderRadius: BorderRadius.circular(8),
+                        color: const Color(0xFFF8FAFC),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.draw_outlined, size: 20, color: Color(0xFF64748B)),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Seal & Signature Area (Physical)',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF1E293B)),
+                                ),
+                                Text(
+                                  'Currently disabled. Enable to show stamp & signature boxes on PDF.',
+                                  style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
+                                ),
+                              ],
+                            ),
+                          ),
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF0A2540),
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                            ),
+                            onPressed: _isLoading ? null : () => _toggleSealSignatureArea(true),
+                            icon: const Icon(Icons.add_rounded, size: 16),
+                            label: const Text('Enable', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
                   const SizedBox(height: 16),
                   const Divider(color: Colors.black26),
 
@@ -609,7 +707,83 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
             ),
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+
+          // Quick Toggle Card for Seal & Signature Area
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _invoice.showSealSignatureArea ? const Color(0xFF0A2540) : const Color(0xFFE2E8F0),
+                width: _invoice.showSealSignatureArea ? 1.5 : 1.0,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _invoice.showSealSignatureArea
+                        ? const Color(0xFF0A2540).withValues(alpha: 0.08)
+                        : const Color(0xFFF1F5F9),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.draw_outlined,
+                    color: _invoice.showSealSignatureArea
+                        ? const Color(0xFF0A2540)
+                        : const Color(0xFF64748B),
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Seal & Signature Area',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13.5,
+                          color: Color(0xFF0A2540),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _invoice.showSealSignatureArea
+                            ? 'Enabled • Area will be included on PDF for physical seal & sign'
+                            : 'Disabled • Tap toggle to add physical seal & signature box',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: _invoice.showSealSignatureArea
+                              ? const Color(0xFF137333)
+                              : const Color(0xFF64748B),
+                          fontWeight: _invoice.showSealSignatureArea ? FontWeight.w600 : FontWeight.normal,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch.adaptive(
+                  value: _invoice.showSealSignatureArea,
+                  activeTrackColor: const Color(0xFF0A2540),
+                  onChanged: _isLoading ? null : (val) => _toggleSealSignatureArea(val),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
 
           // Primary Actions: Print Official PDF, Share, Edit
           SizedBox(
@@ -667,6 +841,76 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
             ],
           ),
           const SizedBox(height: 30),
+        ],
+      ),
+    );
+  }
+
+  /// Exact visual card matching the official Seal & Signature format
+  /// Left Box: "Customer's Seal and Signature"
+  /// Right Box: "FOR : AL NADHEERA CONTRACTING CO WLL" at top, "Authorised Signatory" at bottom-right
+  Widget _buildPhysicalSealAndSignatureCard() {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.black, width: 1),
+      ),
+      child: Table(
+        border: TableBorder.all(color: Colors.black, width: 1),
+        columnWidths: const {
+          0: FlexColumnWidth(1),
+          1: FlexColumnWidth(1),
+        },
+        children: [
+          TableRow(
+            children: [
+              // Left: Customer's Seal and Signature
+              Container(
+                height: 90,
+                padding: const EdgeInsets.all(8),
+                child: const Align(
+                  alignment: Alignment.topLeft,
+                  child: Text(
+                    "Customer's Seal and Signature",
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+              ),
+
+              // Right: FOR : AL NADHEERA CONTRACTING CO WLL + Authorised Signatory
+              Container(
+                height: 90,
+                padding: const EdgeInsets.all(8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: const [
+                    Text(
+                      'FOR : AL NADHEERA CONTRACTING CO WLL',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black,
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.bottomRight,
+                      child: Text(
+                        'Authorised Signatory',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

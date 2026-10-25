@@ -98,6 +98,7 @@ class Invoice {
   final String? introText;
   final String? tableHeaderTitle;
   final Map<String, dynamic>? sourceConfig;
+  final bool showSealSignatureArea;
 
   Invoice({
     required this.id,
@@ -129,6 +130,7 @@ class Invoice {
     this.introText,
     this.tableHeaderTitle,
     this.sourceConfig,
+    this.showSealSignatureArea = false,
   });
 
   bool get isPaid => status.toLowerCase() == 'paid';
@@ -199,7 +201,17 @@ class Invoice {
       tableHeaderTitle: json['table_header_title']?.toString() ?? embeddedMeta?['tableHeaderTitle']?.toString(),
       sourceConfig: (json['source_config'] is Map
           ? Map<String, dynamic>.from(json['source_config'] as Map)
-          : null) ?? (embeddedMeta?['sourceConfig'] is Map ? Map<String, dynamic>.from(embeddedMeta!['sourceConfig'] as Map) : null),
+          : null) ?? (embeddedMeta != null && embeddedMeta['sourceConfig'] is Map ? Map<String, dynamic>.from(embeddedMeta['sourceConfig'] as Map) : null),
+      showSealSignatureArea: (json['show_seal_signature_area'] == true) ||
+          ((json['source_config'] is Map) &&
+              (json['source_config']['showSealSignatureArea'] == true ||
+                  json['source_config']['showSealSignatureArea']?.toString().toLowerCase() == 'true')) ||
+          (embeddedMeta != null &&
+              (embeddedMeta['showSealSignatureArea'] == true ||
+                  embeddedMeta['showSealSignatureArea']?.toString().toLowerCase() == 'true' ||
+                  (embeddedMeta['sourceConfig'] is Map &&
+                      (embeddedMeta['sourceConfig']['showSealSignatureArea'] == true ||
+                          embeddedMeta['sourceConfig']['showSealSignatureArea']?.toString().toLowerCase() == 'true')))),
     );
   }
 
@@ -226,6 +238,9 @@ class Invoice {
       if (paymentTerms != null && paymentTerms!.isNotEmpty) 'payment_terms': paymentTerms,
     };
 
+    final Map<String, dynamic> updatedSourceConfig = Map<String, dynamic>.from(sourceConfig ?? {});
+    updatedSourceConfig['showSealSignatureArea'] = showSealSignatureArea;
+
     if (useDedicatedColumns) {
       if (notes != null && notes!.isNotEmpty) data['notes'] = notes;
       if (documentType != null && documentType!.isNotEmpty) data['document_type'] = documentType;
@@ -233,7 +248,7 @@ class Invoice {
       if (salutation != null && salutation!.isNotEmpty) data['salutation'] = salutation;
       if (introText != null && introText!.isNotEmpty) data['intro_text'] = introText;
       if (tableHeaderTitle != null && tableHeaderTitle!.isNotEmpty) data['table_header_title'] = tableHeaderTitle;
-      if (sourceConfig != null) data['source_config'] = sourceConfig;
+      data['source_config'] = updatedSourceConfig;
     } else {
       final meta = <String, dynamic>{
         if (documentType != null) 'documentType': documentType,
@@ -241,7 +256,8 @@ class Invoice {
         if (salutation != null) 'salutation': salutation,
         if (introText != null) 'introText': introText,
         if (tableHeaderTitle != null) 'tableHeaderTitle': tableHeaderTitle,
-        if (sourceConfig != null) 'sourceConfig': sourceConfig,
+        'sourceConfig': updatedSourceConfig,
+        'showSealSignatureArea': showSealSignatureArea,
       };
 
       String combinedNotes = notes ?? '';
@@ -266,7 +282,14 @@ class Invoice {
     String? introText,
     String? tableHeaderTitle,
     Map<String, dynamic>? sourceConfig,
+    bool? showSealSignatureArea,
   }) {
+    final Map<String, dynamic> mergedSourceConfig = sourceConfig != null
+        ? Map<String, dynamic>.from(sourceConfig)
+        : (this.sourceConfig != null ? Map<String, dynamic>.from(this.sourceConfig!) : <String, dynamic>{});
+    final bool effectiveSealSig = showSealSignatureArea ?? this.showSealSignatureArea;
+    mergedSourceConfig['showSealSignatureArea'] = effectiveSealSig;
+
     return Invoice(
       id: id,
       invoiceNumber: invoiceNumber,
@@ -296,7 +319,8 @@ class Invoice {
       salutation: salutation ?? this.salutation,
       introText: introText ?? this.introText,
       tableHeaderTitle: tableHeaderTitle ?? this.tableHeaderTitle,
-      sourceConfig: sourceConfig ?? this.sourceConfig,
+      sourceConfig: mergedSourceConfig,
+      showSealSignatureArea: effectiveSealSig,
     );
   }
 }

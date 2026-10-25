@@ -5,6 +5,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/utils/currency_words_converter.dart';
 import '../../models/customer_model.dart';
 import '../../models/invoice_model.dart';
+import '../../services/invoice_number_service.dart';
 import 'b2b_quotation_pdf_generator.dart';
 
 class B2bDocumentFormScreen extends StatefulWidget {
@@ -69,6 +70,7 @@ class _B2bDocumentFormScreenState extends State<B2bDocumentFormScreen> {
   Customer? _selectedCustomer;
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _showSealSignatureArea = false;
 
   // ==================== DYNAMIC BOQ ITEMS ====================
   final List<_B2bItemInputRow> _itemRows = [];
@@ -86,6 +88,8 @@ class _B2bDocumentFormScreenState extends State<B2bDocumentFormScreen> {
     _pageMode = srcCfg['pageMode']?.toString() ?? 'PORTRAIT';
     _fontType = srcCfg['fontType']?.toString() ?? 'Helvetica';
     _status = edit?.status ?? srcCfg['status']?.toString() ?? 'Pending';
+    _showSealSignatureArea = edit?.showSealSignatureArea ??
+        (srcCfg['showSealSignatureArea'] == true || srcCfg['showSealSignatureArea']?.toString().toLowerCase() == 'true');
 
     _startDate = edit?.date ?? DateTime.now();
     if (edit?.dueDate != null) {
@@ -102,9 +106,19 @@ class _B2bDocumentFormScreenState extends State<B2bDocumentFormScreen> {
     _autoPageBreakCtrl = TextEditingController(text: (srcCfg['autoPageBreak'] ?? 0).toString());
 
     // Document contents: use edited invoice values or clean blanks for new document
+    final initialNum = edit?.invoiceNumber ?? InvoiceNumberService.generateInitialB2bNumber(_documentType, _startDate);
     _quotationNumCtrl = TextEditingController(
-      text: edit?.invoiceNumber ?? '',
+      text: initialNum,
     );
+    if (edit == null) {
+      InvoiceNumberService.fetchNextB2bDocumentNumber(_documentType, _startDate).then((newNumber) {
+        if (mounted && (_quotationNumCtrl.text == initialNum || _quotationNumCtrl.text.isEmpty)) {
+          setState(() {
+            _quotationNumCtrl.text = newNumber;
+          });
+        }
+      });
+    }
     _recipientNameCtrl = TextEditingController(
       text: edit?.customerName.isNotEmpty == true ? edit!.customerName : '',
     );
@@ -260,6 +274,7 @@ class _B2bDocumentFormScreenState extends State<B2bDocumentFormScreen> {
       'marginHeader': double.tryParse(_marginHeaderCtrl.text.trim()) ?? 0,
       'marginBottom': double.tryParse(_marginBottomCtrl.text.trim()) ?? 0,
       'autoPageBreak': double.tryParse(_autoPageBreakCtrl.text.trim()) ?? 0,
+      'showSealSignatureArea': _showSealSignatureArea,
     };
 
     return Invoice(
@@ -285,6 +300,7 @@ class _B2bDocumentFormScreenState extends State<B2bDocumentFormScreen> {
       introText: _introTextCtrl.text.trim(),
       tableHeaderTitle: _tableTitleCtrl.text.trim(),
       sourceConfig: sourceConfig,
+      showSealSignatureArea: _showSealSignatureArea,
     );
   }
 
@@ -498,6 +514,11 @@ class _B2bDocumentFormScreenState extends State<B2bDocumentFormScreen> {
                   // ==================== CARD 5: FINANCIAL SUMMARY & WORDS ====================
                   _buildFinancialSummaryCard(),
 
+                  const SizedBox(height: 18),
+
+                  // ==================== CARD 6: SEAL & SIGNATURE AREA ====================
+                  _buildSealAndSignatureCard(),
+
                   const SizedBox(height: 32),
 
                   // Large Preview & Export Action Button
@@ -599,7 +620,30 @@ class _B2bDocumentFormScreenState extends State<B2bDocumentFormScreen> {
                           value: _documentType,
                           items: _documentTypeOptions,
                           onChanged: (v) {
-                            if (v != null) setState(() => _documentType = v);
+                            if (v != null) {
+                              final oldPrefix = InvoiceNumberService.getPrefixForType(_documentType);
+                              final newPrefix = InvoiceNumberService.getPrefixForType(v);
+                              setState(() {
+                                _documentType = v;
+                                if (widget.invoiceToEdit == null) {
+                                  if (_quotationNumCtrl.text.isEmpty || _quotationNumCtrl.text.startsWith(oldPrefix)) {
+                                    _quotationNumCtrl.text = _quotationNumCtrl.text.replaceFirst(oldPrefix, newPrefix);
+                                    if (!_quotationNumCtrl.text.startsWith(newPrefix)) {
+                                      _quotationNumCtrl.text = InvoiceNumberService.generateInitialB2bNumber(v, _startDate);
+                                    }
+                                  }
+                                }
+                              });
+                              if (widget.invoiceToEdit == null) {
+                                InvoiceNumberService.fetchNextB2bDocumentNumber(v, _startDate).then((newNumber) {
+                                  if (mounted && widget.invoiceToEdit == null) {
+                                    setState(() {
+                                      _quotationNumCtrl.text = newNumber;
+                                    });
+                                  }
+                                });
+                              }
+                            }
                           },
                         ),
                       ),
@@ -785,11 +829,25 @@ class _B2bDocumentFormScreenState extends State<B2bDocumentFormScreen> {
                 flex: 4,
                 child: TextFormField(
                   controller: _quotationNumCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Quotation No *',
-                    hintText: 'e.g. ANCC-032/026',
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  decoration: InputDecoration(
+                    labelText: _documentType == 'Quotation'
+                        ? 'Quotation No *'
+                        : (_documentType == 'Tax Invoice' || _documentType == 'B2B' ? 'Invoice No *' : '$_documentType No *'),
+                    hintText: 'e.g. ${InvoiceNumberService.generateInitialB2bNumber(_documentType, _startDate)}',
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.refresh_rounded, size: 20),
+                      tooltip: 'Auto-generate number',
+                      onPressed: () async {
+                        final num = await InvoiceNumberService.fetchNextB2bDocumentNumber(_documentType, _startDate);
+                        if (mounted) {
+                          setState(() {
+                            _quotationNumCtrl.text = num;
+                          });
+                        }
+                      },
+                    ),
                   ),
                   validator: (v) => v?.trim().isEmpty == true ? 'Required' : null,
                 ),
@@ -1160,6 +1218,106 @@ class _B2bDocumentFormScreenState extends State<B2bDocumentFormScreen> {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  // ==================== CARD 6: SEAL & SIGNATURE AREA ====================
+  Widget _buildSealAndSignatureCard() {
+    return _buildSectionBox(
+      title: 'Physical Seal & Signature Area',
+      icon: Icons.draw_outlined,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            title: const Text(
+              'Include Seal & Signature Area on PDF',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5),
+            ),
+            subtitle: const Text(
+              'Adds boxes for Customer\'s Seal & Signature and Al Nadheera Authorised Signatory for physical stamping & signing',
+              style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
+            ),
+            value: _showSealSignatureArea,
+            activeTrackColor: const Color(0xFF0A2540),
+            onChanged: (val) => setState(() => _showSealSignatureArea = val),
+          ),
+          if (_showSealSignatureArea) ...[
+            const SizedBox(height: 12),
+            const Text(
+              'AREA PREVIEW ON PDF:',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF64748B)),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.black, width: 1),
+                color: Colors.white,
+              ),
+              child: Table(
+                border: TableBorder.all(color: Colors.black, width: 1),
+                columnWidths: const {
+                  0: FlexColumnWidth(1),
+                  1: FlexColumnWidth(1),
+                },
+                children: [
+                  TableRow(
+                    children: [
+                      // Left: Customer's Seal and Signature
+                      Container(
+                        height: 85,
+                        padding: const EdgeInsets.all(8),
+                        child: const Align(
+                          alignment: Alignment.topLeft,
+                          child: Text(
+                            "Customer's Seal and Signature",
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      // Right: FOR : AL NADHEERA CONTRACTING CO WLL + Authorised Signatory
+                      Container(
+                        height: 85,
+                        padding: const EdgeInsets.all(8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: const [
+                            Text(
+                              'FOR : AL NADHEERA CONTRACTING CO WLL',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black,
+                              ),
+                            ),
+                            Align(
+                              alignment: Alignment.bottomRight,
+                              child: Text(
+                                'Authorised Signatory',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );

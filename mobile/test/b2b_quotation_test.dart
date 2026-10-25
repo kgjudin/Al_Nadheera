@@ -169,5 +169,38 @@ void main() {
     expect(pdfBytes.sublist(0, 4), [0x25, 0x50, 0x44, 0x46]);
     import_io.File('output_sample_multipage_quotation.pdf').writeAsBytesSync(pdfBytes);
   });
+
+  test('Invoice showSealSignatureArea toggle and PDF generation', () async {
+    final invWithSeal = Invoice(
+      id: 'inv-seal-01',
+      invoiceNumber: 'ANCC-SEAL/2026',
+      date: DateTime.now(),
+      customerName: 'Al Nadheera Partner Co.',
+      customerAddress: 'Riffa, Bahrain',
+      totalAmount: 1250.000,
+      showSealSignatureArea: true,
+      createdAt: DateTime.now(),
+    );
+
+    expect(invWithSeal.showSealSignatureArea, isTrue);
+
+    // Serialization
+    final json = invWithSeal.toJson();
+    expect(json['source_config']['showSealSignatureArea'], isTrue);
+
+    final restored = Invoice.fromJson(json);
+    expect(restored.showSealSignatureArea, isTrue);
+
+    // Test toggle to false
+    final disabled = restored.copyWith(showSealSignatureArea: false);
+    expect(disabled.showSealSignatureArea, isFalse);
+    expect(disabled.toJson()['source_config']['showSealSignatureArea'], isFalse);
+
+    // Test PDF generation with seal & signature enabled
+    final pdfBytes = await B2bQuotationPdfGenerator.generatePdf(invWithSeal);
+    expect(pdfBytes, isNotEmpty);
+    expect(pdfBytes.sublist(0, 4), [0x25, 0x50, 0x44, 0x46]);
+    import_io.File('output_sample_seal_signature.pdf').writeAsBytesSync(pdfBytes);
+  });
 }
 

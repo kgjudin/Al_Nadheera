@@ -122,63 +122,6 @@ class _SiteBudgetTabState extends State<SiteBudgetTab> {
         ));
       }
 
-      // If empty in database, add realistic demo fallback records
-      if (items.isEmpty) {
-        final now = DateTime.now();
-        items.addAll([
-          VatItem(
-            id: 'demo_1',
-            date: now.subtract(const Duration(days: 2)),
-            category: 'Material',
-            supplierName: 'Judin Construction Supply',
-            invoiceNumber: 'INV-3841',
-            invoiceAmount: 3000.0,
-            vatAmount: 150.0,
-            remarks: 'High-Tensile Reinforcement Mesh',
-          ),
-          VatItem(
-            id: 'demo_2',
-            date: now.subtract(const Duration(days: 5)),
-            category: 'Material',
-            supplierName: 'Gulf ReadyMix Co.',
-            invoiceNumber: 'INV-3912',
-            invoiceAmount: 4500.0,
-            vatAmount: 225.0,
-            remarks: 'Grade 40 Concrete Curing (45m³)',
-          ),
-          VatItem(
-            id: 'demo_3',
-            date: now.subtract(const Duration(days: 8)),
-            category: 'Sub-Contractor',
-            supplierName: 'Rast Earthworks Ltd',
-            invoiceNumber: 'SUB-1911',
-            invoiceAmount: 5999.0,
-            vatAmount: 300.0,
-            remarks: 'Excavation & Ground Prep Phase 1',
-          ),
-          VatItem(
-            id: 'demo_4',
-            date: now.subtract(const Duration(days: 12)),
-            category: 'Sub-Contractor',
-            supplierName: 'Al-Manama Dewatering Co.',
-            invoiceNumber: 'SUB-1908',
-            invoiceAmount: 3200.0,
-            vatAmount: 160.0,
-            remarks: 'Deep Well Dewatering System',
-          ),
-          VatItem(
-            id: 'demo_5',
-            date: now.subtract(const Duration(days: 15)),
-            category: 'Material',
-            supplierName: 'Bahrain Timber Works',
-            invoiceNumber: 'INV-3911',
-            invoiceAmount: 1500.0,
-            vatAmount: 75.0,
-            remarks: 'Marine Plywood Formwork Sheets',
-          ),
-        ]);
-      }
-
       // Sort newest first
       items.sort((a, b) => b.date.compareTo(a.date));
 

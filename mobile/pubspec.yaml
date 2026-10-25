@@ -53,6 +53,7 @@ dependencies:
   url_launcher: ^6.3.3
   syncfusion_flutter_xlsio: ^35.1.40+1
   geolocator: ^13.0.2
+  jitsi_meet_flutter_sdk: ^13.2.0
 
 dev_dependencies:
   flutter_test:

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
+import '../../services/camera/app_camera_service.dart';
 
 class NoteDetailsScreen extends StatefulWidget {
   final String folderId;
@@ -118,14 +119,22 @@ class _NoteDetailsScreenState extends State<NoteDetailsScreen> {
       }
     }
 
+    if (!mounted) return;
+
     try {
-      final picker = ImagePicker();
-      final pickedFile = await picker.pickImage(
-        source: source,
-        maxWidth: 1600,
-        maxHeight: 1600,
-        imageQuality: 80,
-      );
+      XFile? pickedFile;
+      if (source == ImageSource.camera) {
+        final photo = await AppCameraService.capturePhoto(context);
+        pickedFile = photo?.toXFile();
+      } else {
+        final picker = ImagePicker();
+        pickedFile = await picker.pickImage(
+          source: source,
+          maxWidth: 1600,
+          maxHeight: 1600,
+          imageQuality: 80,
+        );
+      }
       if (pickedFile == null) return;
 
       setState(() {

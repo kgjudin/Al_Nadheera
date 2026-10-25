@@ -11,6 +11,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:uuid/uuid.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../services/api_service.dart';
+import '../../../services/invoice_number_service.dart';
+import '../../../services/camera/app_camera_service.dart';
 import '../../../models/financial_models.dart';
 
 class SiteMaterialTab extends StatefulWidget {
@@ -290,18 +292,13 @@ class _SiteMaterialTabState extends State<SiteMaterialTab> {
                 onTap: () async {
                   Navigator.pop(sheetContext);
                   try {
-                    final picker = ImagePicker();
-                    final photo = await picker.pickImage(source: ImageSource.camera, imageQuality: 85);
+                    final photo = await AppCameraService.capturePhoto(context);
                     if (photo != null) {
-                      final bytes = await photo.readAsBytes();
-                      final fileName = photo.name.isNotEmpty
-                          ? photo.name
-                          : 'photo_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.jpg';
                       onAttachmentAdded(AttachmentItem(
-                        name: fileName,
+                        name: photo.name,
                         type: 'image',
-                        size: bytes.length,
-                        bytes: bytes,
+                        size: photo.size,
+                        bytes: photo.bytes,
                       ));
                     }
                   } catch (e) {
@@ -395,7 +392,16 @@ class _SiteMaterialTabState extends State<SiteMaterialTab> {
   void _showAddOrEditDialog({MaterialCost? existingMaterial}) {
     final formKey = GlobalKey<FormState>();
     final supplierCtrl = TextEditingController(text: existingMaterial?.supplierName ?? '');
-    final invoiceNoCtrl = TextEditingController(text: existingMaterial?.invoiceNumber ?? '');
+    DateTime entryDate = existingMaterial?.date ?? DateTime.now();
+    final initialInvoiceNo = existingMaterial?.invoiceNumber ?? InvoiceNumberService.generateInitialMaterialInvoiceNumber(entryDate);
+    final invoiceNoCtrl = TextEditingController(text: initialInvoiceNo);
+    if (existingMaterial == null) {
+      InvoiceNumberService.fetchNextMaterialInvoiceNumber(siteId: widget.siteId, date: entryDate).then((newNumber) {
+        if (invoiceNoCtrl.text == initialInvoiceNo || invoiceNoCtrl.text.isEmpty) {
+          invoiceNoCtrl.text = newNumber;
+        }
+      });
+    }
     final invoiceAmountCtrl = TextEditingController(
       text: existingMaterial != null && existingMaterial.invoiceAmount > 0
           ? existingMaterial.invoiceAmount.toStringAsFixed(2)
@@ -407,7 +413,6 @@ class _SiteMaterialTabState extends State<SiteMaterialTab> {
           : '',
     );
     final remarksCtrl = TextEditingController(text: existingMaterial?.remarks ?? '');
-    DateTime entryDate = existingMaterial?.date ?? DateTime.now();
     final dateFormat = DateFormat('yyyy-MM-dd');
     bool isSaving = false;
 
@@ -488,11 +493,26 @@ class _SiteMaterialTabState extends State<SiteMaterialTab> {
                         TextFormField(
                           controller: invoiceNoCtrl,
                           enabled: !isSaving,
-                          decoration: const InputDecoration(
+                          decoration: InputDecoration(
                             labelText: 'Invoice Number',
-                            hintText: 'e.g. INV-3841',
-                            border: OutlineInputBorder(),
+                            hintText: 'e.g. ${InvoiceNumberService.generateInitialMaterialInvoiceNumber(entryDate)}',
+                            border: const OutlineInputBorder(),
                             isDense: true,
+                            suffixIcon: IconButton(
+                              icon: const Icon(Icons.refresh_rounded, size: 18),
+                              tooltip: 'Regenerate Invoice Number',
+                              onPressed: isSaving
+                                  ? null
+                                  : () async {
+                                      final next = await InvoiceNumberService.fetchNextMaterialInvoiceNumber(
+                                        siteId: widget.siteId,
+                                        date: entryDate,
+                                      );
+                                      setDialogState(() {
+                                        invoiceNoCtrl.text = next;
+                                      });
+                                    },
+                            ),
                           ),
                         ),
                         const SizedBox(height: 14),
@@ -1330,11 +1350,11 @@ class _SiteMaterialTabState extends State<SiteMaterialTab> {
                           const Text('TOTAL BILLED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
                           const SizedBox(height: 4),
                           Text(
-                            currencyFormat.format(totalBilled > 0 ? totalBilled : 9000),
+                            currencyFormat.format(totalBilled),
                             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0A2540)),
                           ),
                           const SizedBox(height: 2),
-                          Text('9% of Budget', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+                          Text('${rawList.length} invoice${rawList.length == 1 ? '' : 's'}', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
                         ],
                       ),
                     ),
@@ -1349,7 +1369,7 @@ class _SiteMaterialTabState extends State<SiteMaterialTab> {
                         children: [
                           const Text('RECEIVED', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
                           const SizedBox(height: 4),
-                          Text('${rawList.isNotEmpty ? rawList.length : 2} Dispatches', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF137333))),
+                          Text('${rawList.length} Dispatches', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF137333))),
                           const SizedBox(height: 2),
                           Text('Verified on-site', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
                         ],
@@ -1366,7 +1386,7 @@ class _SiteMaterialTabState extends State<SiteMaterialTab> {
                         children: [
                           const Text('PENDING POS', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
                           const SizedBox(height: 4),
-                          const Text('1 Draft', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFFC2410C))),
+                          const Text('0 Drafts', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFFC2410C))),
                           const SizedBox(height: 2),
                           Text('Awaiting sign-off', style: TextStyle(fontSize: 10, color: Colors.grey[600])),
                         ],
@@ -1449,38 +1469,30 @@ class _SiteMaterialTabState extends State<SiteMaterialTab> {
               const SizedBox(height: 10),
 
               if (rawList.isEmpty) ...[
-                _buildMaterialCard(
-                  supplier: 'Judin',
-                  status: 'Received & Stored',
-                  statusBg: const Color(0xFFE6F4EA),
-                  statusColor: const Color(0xFF137333),
-                  title: 'High-Tensile Reinforcement Mesh',
-                  invNo: '3841',
-                  date: '2026-09-24',
-                  invoiceAmount: 3000.0,
-                  vatAmount: 150.0,
-                ),
-                _buildMaterialCard(
-                  supplier: 'Gulf ReadyMix',
-                  status: 'Verified On-site',
-                  statusBg: const Color(0xFFE8F1FF),
-                  statusColor: const Color(0xFF0B5ED7),
-                  title: 'Grade 40 Concrete Curing (45m³)',
-                  invNo: '3912',
-                  date: '2026-09-21',
-                  invoiceAmount: 4500.0,
-                  vatAmount: 225.0,
-                ),
-                _buildMaterialCard(
-                  supplier: 'Bahrain Timber Works',
-                  status: 'Pending Inspection',
-                  statusBg: const Color(0xFFFFF7ED),
-                  statusColor: const Color(0xFFC2410C),
-                  title: 'Marine Plywood Formwork Sheets',
-                  invNo: '3911',
-                  date: '2026-09-21',
-                  invoiceAmount: 1500.0,
-                  vatAmount: 75.0,
+                Container(
+                  padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Center(
+                    child: Column(
+                      children: [
+                        Icon(Icons.receipt_long_outlined, size: 48, color: Colors.grey[400]),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'No Material Invoices Yet',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF0A2540)),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Tap the "Add / Import" button above to record your first material delivery or invoice.',
+                          style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ] else if (filteredList.isEmpty) ...[
                 Container(

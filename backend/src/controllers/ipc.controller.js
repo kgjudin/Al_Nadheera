@@ -36,10 +36,13 @@ const createIpcDocument = async (req, res, next) => {
       document_number,
       project_name,
       client_name,
+      main_contractor,
+      sub_contractor,
       date,
       status,
       total_amount,
       items = [],
+      deductions = [],
       notes,
     } = req.body;
 
@@ -49,10 +52,13 @@ const createIpcDocument = async (req, res, next) => {
         document_number,
         project_name,
         client_name,
+        main_contractor: main_contractor || '',
+        sub_contractor: sub_contractor || '',
         date: date || new Date().toISOString().split('T')[0],
         status: status || 'Draft',
         total_amount: total_amount || 0,
         items,
+        deductions,
         notes,
       })
       .select()
@@ -98,10 +104,13 @@ const updateIpcDocument = async (req, res, next) => {
       document_number,
       project_name,
       client_name,
+      main_contractor,
+      sub_contractor,
       date,
       status,
       total_amount,
       items,
+      deductions,
       notes,
     } = req.body;
 
@@ -111,10 +120,13 @@ const updateIpcDocument = async (req, res, next) => {
     if (document_number !== undefined) payload.document_number = document_number;
     if (project_name !== undefined) payload.project_name = project_name;
     if (client_name !== undefined) payload.client_name = client_name;
+    if (main_contractor !== undefined) payload.main_contractor = main_contractor;
+    if (sub_contractor !== undefined) payload.sub_contractor = sub_contractor;
     if (date !== undefined) payload.date = date;
     if (status !== undefined) payload.status = status;
     if (total_amount !== undefined) payload.total_amount = total_amount;
     if (items !== undefined) payload.items = items;
+    if (deductions !== undefined) payload.deductions = deductions;
     if (notes !== undefined) payload.notes = notes;
 
     const { data: doc, error: docError } = await supabase
