@@ -8,6 +8,8 @@ import 'invoice_detail_screen.dart';
 import 'invoice_pdf_generator.dart';
 import 'b2b_document_form_screen.dart';
 import '../document_templates/document_template_settings_screen.dart';
+import '../../services/permission_service.dart';
+import '../../core/constants/app_modules.dart';
 
 class InvoicesScreen extends StatefulWidget {
   const InvoicesScreen({super.key});
@@ -143,29 +145,31 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
         elevation: 0,
         actions: [
           // Customer Management Button
-          TextButton.icon(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const CustomersScreen()),
-              );
-            },
-            icon: const Icon(Icons.groups_rounded, size: 20),
-            label: const Text('Customers', style: TextStyle(fontWeight: FontWeight.bold)),
-            style: TextButton.styleFrom(foregroundColor: const Color(0xFF0A2540)),
-          ),
-          IconButton(
-            icon: const Icon(Icons.tune_rounded),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const DocumentTemplateSettingsScreen(),
-                ),
-              );
-            },
-            tooltip: 'Print Formats & Templates',
-          ),
+          if (PermissionService.instance.canView(AppModules.customers))
+            TextButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const CustomersScreen()),
+                );
+              },
+              icon: const Icon(Icons.groups_rounded, size: 20),
+              label: const Text('Customers', style: TextStyle(fontWeight: FontWeight.bold)),
+              style: TextButton.styleFrom(foregroundColor: const Color(0xFF0A2540)),
+            ),
+          if (PermissionService.instance.canView(AppModules.documentTemplates) || PermissionService.instance.isAdmin)
+            IconButton(
+              icon: const Icon(Icons.tune_rounded),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const DocumentTemplateSettingsScreen(),
+                  ),
+                );
+              },
+              tooltip: 'Print Formats & Templates',
+            ),
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             onPressed: _loadInvoices,
@@ -294,24 +298,25 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
                         style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
                       ),
                       const SizedBox(height: 18),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0A2540),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      if (PermissionService.instance.canCreate(AppModules.invoices))
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0A2540),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const B2bDocumentFormScreen()),
+                            ).then((res) {
+                              if (res == true) _loadInvoices();
+                            });
+                          },
+                          icon: const Icon(Icons.add, size: 18),
+                          label: const Text('Create New Document'),
                         ),
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const B2bDocumentFormScreen()),
-                          ).then((res) {
-                            if (res == true) _loadInvoices();
-                          });
-                        },
-                        icon: const Icon(Icons.add, size: 18),
-                        label: const Text('Create New Document'),
-                      ),
                     ],
                   ),
                 ),
@@ -323,20 +328,22 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF0A2540),
-        foregroundColor: Colors.white,
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const B2bDocumentFormScreen()),
-          ).then((res) {
-            if (res == true) _loadInvoices();
-          });
-        },
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('New Document', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
+      floatingActionButton: PermissionService.instance.canCreate(AppModules.invoices)
+          ? FloatingActionButton.extended(
+              backgroundColor: const Color(0xFF0A2540),
+              foregroundColor: Colors.white,
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const B2bDocumentFormScreen()),
+                ).then((res) {
+                  if (res == true) _loadInvoices();
+                });
+              },
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('New Document', style: TextStyle(fontWeight: FontWeight.bold)),
+            )
+          : null,
     );
   }
 

@@ -36,23 +36,70 @@ class _EmployeeCustomPermissionsScreenState extends State<EmployeeCustomPermissi
       final roles = await _permissionService.fetchAllRoles();
       if (!mounted) return;
 
+      // Fetch latest employee data directly from database to avoid stale data
+      final empRes = await _permissionService.getCurrentOrEmployeeDetails(widget.employee.id);
+
+      String empRole = widget.employee.role ?? 'Employee';
+      String? empRoleId = widget.employee.roleId;
+      Map<String, dynamic>? customOverrides = widget.employee.customPermissions;
+
+      if (empRes != null) {
+        if (empRes['role'] != null) empRole = empRes['role'].toString();
+        if (empRes['role_id'] != null) empRoleId = empRes['role_id'].toString();
+        if (empRes['custom_permissions'] != null && empRes['custom_permissions'] is Map) {
+          customOverrides = Map<String, dynamic>.from(empRes['custom_permissions']);
+        }
+      }
+
       setState(() {
         _roles = roles;
-        final empRole = widget.employee.role;
-        _selectedRoleName = (empRole != null && empRole.isNotEmpty) ? empRole : 'Employee';
+        _selectedRoleName = empRole;
 
-        final match = roles.firstWhere(
-          (r) => r.name.toLowerCase() == _selectedRoleName.toLowerCase(),
-          orElse: () => roles.firstWhere(
-            (r) => r.name.toLowerCase() == 'employee',
-            orElse: () => roles.first,
-          ),
-        );
+        AppRole? match;
+        if (empRoleId != null && empRoleId.isNotEmpty) {
+          match = roles.firstWhere(
+            (r) => r.id == empRoleId,
+            orElse: () => roles.firstWhere(
+              (r) => r.name.toLowerCase() == _selectedRoleName.toLowerCase(),
+              orElse: () => roles.first,
+            ),
+          );
+        } else {
+          match = roles.firstWhere(
+            (r) => r.name.toLowerCase() == _selectedRoleName.toLowerCase(),
+            orElse: () => roles.firstWhere(
+              (r) => r.name.toLowerCase() == 'employee',
+              orElse: () => roles.first,
+            ),
+          );
+        }
+
         _selectedRoleId = match.id;
         _selectedRoleName = match.name;
 
         // Initialize permissions from selected role
         _syncPermissionsWithRole(match);
+
+        // Apply existing custom overrides if any
+        if (customOverrides != null && customOverrides.isNotEmpty) {
+          _hasCustomOverrides = true;
+          for (final entry in customOverrides.entries) {
+            final mod = entry.key;
+            if (entry.value is Map) {
+              final val = Map<String, dynamic>.from(entry.value);
+              final current = _customPermissions[mod] ?? ModulePermission(moduleKey: mod);
+              _customPermissions[mod] = current.copyWith(
+                canView: val['can_view'] == true,
+                canCreate: val['can_create'] == true,
+                canEdit: val['can_edit'] == true,
+                canDelete: val['can_delete'] == true,
+              );
+            }
+          }
+        } else {
+          _hasCustomOverrides = false;
+        }
+
         _isLoading = false;
       });
     } catch (e) {
@@ -198,9 +245,27 @@ class _EmployeeCustomPermissionsScreenState extends State<EmployeeCustomPermissi
                       const Divider(height: 24),
 
                       // Assigned Role Selector
-                      const Text(
-                        'ASSIGNED ROLE',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1, color: Color(0xFF6B7280)),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'ASSIGNED ROLE',
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1, color: Color(0xFF6B7280)),
+                          ),
+                          if (widget.employee.email?.trim().toLowerCase() == 'judin@gmail.com' ||
+                              widget.employee.email?.trim().toLowerCase() == 'superadmin@alnadheera.com')
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.amber.shade100,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                'Primary Owner',
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF92400E)),
+                              ),
+                            ),
+                        ],
                       ),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
@@ -225,7 +290,10 @@ class _EmployeeCustomPermissionsScreenState extends State<EmployeeCustomPermissi
                             ),
                           );
                         }).toList(),
-                        onChanged: _onRoleChanged,
+                        onChanged: (widget.employee.email?.trim().toLowerCase() == 'judin@gmail.com' ||
+                                widget.employee.email?.trim().toLowerCase() == 'superadmin@alnadheera.com')
+                            ? null
+                            : _onRoleChanged,
                       ),
                     ],
                   ),

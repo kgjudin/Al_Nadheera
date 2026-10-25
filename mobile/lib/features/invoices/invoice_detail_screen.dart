@@ -8,6 +8,8 @@ import '../../core/utils/currency_words_converter.dart';
 import '../../models/invoice_model.dart';
 import 'b2b_quotation_pdf_generator.dart';
 import 'b2b_document_form_screen.dart';
+import '../../services/permission_service.dart';
+import '../../core/constants/app_modules.dart';
 
 class InvoiceDetailScreen extends StatefulWidget {
   final Invoice invoice;
@@ -237,21 +239,22 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
         foregroundColor: const Color(0xFF0A2540),
         elevation: 0,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_outlined),
-            tooltip: 'Edit Document',
-            onPressed: () async {
-              final updated = await Navigator.push<bool>(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => B2bDocumentFormScreen(invoiceToEdit: _invoice),
-                ),
-              );
-              if (updated == true) {
-                _refreshInvoiceDetails();
-              }
-            },
-          ),
+          if (PermissionService.instance.canEdit(AppModules.invoices))
+            IconButton(
+              icon: const Icon(Icons.edit_outlined),
+              tooltip: 'Edit Document',
+              onPressed: () async {
+                final updated = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => B2bDocumentFormScreen(invoiceToEdit: _invoice),
+                  ),
+                );
+                if (updated == true) {
+                  _refreshInvoiceDetails();
+                }
+              },
+            ),
           PopupMenuButton<String>(
             icon: const Icon(Icons.more_vert_rounded),
             onSelected: (val) {
@@ -284,17 +287,19 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                   ],
                 ),
               ),
-              const PopupMenuDivider(),
-              const PopupMenuItem(
-                value: 'delete',
-                child: Row(
-                  children: [
-                    Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                    SizedBox(width: 8),
-                    Text('Delete Document', style: TextStyle(color: Colors.red)),
-                  ],
+              if (PermissionService.instance.canDelete(AppModules.invoices)) ...[
+                const PopupMenuDivider(),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text('Delete Document', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ],
@@ -818,26 +823,28 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                   label: const Text('Share PDF'),
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton.icon(
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFFC51A1B),
-                    side: const BorderSide(color: Color(0xFFC51A1B)),
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              if (PermissionService.instance.canEdit(AppModules.invoices)) ...[
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFFC51A1B),
+                      side: const BorderSide(color: Color(0xFFC51A1B)),
+                      padding: const EdgeInsets.symmetric(vertical: 13),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    onPressed: () async {
+                      final updated = await Navigator.push<bool>(
+                        context,
+                        MaterialPageRoute(builder: (context) => B2bDocumentFormScreen(invoiceToEdit: _invoice)),
+                      );
+                      if (updated == true) _refreshInvoiceDetails();
+                    },
+                    icon: const Icon(Icons.edit_outlined, size: 18, color: Color(0xFFC51A1B)),
+                    label: const Text('Edit Document'),
                   ),
-                  onPressed: () async {
-                    final updated = await Navigator.push<bool>(
-                      context,
-                      MaterialPageRoute(builder: (context) => B2bDocumentFormScreen(invoiceToEdit: _invoice)),
-                    );
-                    if (updated == true) _refreshInvoiceDetails();
-                  },
-                  icon: const Icon(Icons.edit_outlined, size: 18, color: Color(0xFFC51A1B)),
-                  label: const Text('Edit Document'),
                 ),
-              ),
+              ],
             ],
           ),
           const SizedBox(height: 30),

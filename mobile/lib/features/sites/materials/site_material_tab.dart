@@ -14,6 +14,8 @@ import '../../../services/api_service.dart';
 import '../../../services/invoice_number_service.dart';
 import '../../../services/camera/app_camera_service.dart';
 import '../../../models/financial_models.dart';
+import '../../../services/permission_service.dart';
+import '../../../core/constants/app_modules.dart';
 
 class SiteMaterialTab extends StatefulWidget {
   final String siteId;
@@ -1526,23 +1528,25 @@ class _SiteMaterialTabState extends State<SiteMaterialTab> {
           );
         },
       ),
-      bottomSheet: Container(
-        color: Colors.white,
-        padding: const EdgeInsets.all(16),
-        child: SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0A2540),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: () => _showAddOrEditDialog(),
-            icon: const Icon(Icons.add, color: Colors.white),
-            label: const Text('ADD MATERIAL COST', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-          ),
-        ),
-      ),
+      bottomSheet: PermissionService.instance.canCreate(AppModules.siteMaterials)
+          ? Container(
+              color: Colors.white,
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0A2540),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: () => _showAddOrEditDialog(),
+                  icon: const Icon(Icons.add, color: Colors.white),
+                  label: const Text('ADD MATERIAL COST', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                ),
+              ),
+            )
+          : null,
     );
   }
 
@@ -1645,26 +1649,28 @@ class _SiteMaterialTabState extends State<SiteMaterialTab> {
                                   ],
                                 ),
                               ),
-                              const PopupMenuItem(
-                                value: 'edit',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.edit, size: 16, color: Colors.black87),
-                                    SizedBox(width: 8),
-                                    Text('Edit & Attachments'),
-                                  ],
+                              if (PermissionService.instance.canEdit(AppModules.siteMaterials))
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.edit, size: 16, color: Colors.black87),
+                                      SizedBox(width: 8),
+                                      Text('Edit & Attachments'),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              const PopupMenuItem(
-                                value: 'delete',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.delete, size: 16, color: Colors.red),
-                                    SizedBox(width: 8),
-                                    Text('Delete', style: TextStyle(color: Colors.red)),
-                                  ],
+                              if (PermissionService.instance.canDelete(AppModules.siteMaterials))
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.delete, size: 16, color: Colors.red),
+                                      SizedBox(width: 8),
+                                      Text('Delete', style: TextStyle(color: Colors.red)),
+                                    ],
+                                  ),
                                 ),
-                              ),
                             ],
                           ),
                         ],

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/customer_model.dart';
+import '../../services/permission_service.dart';
+import '../../core/constants/app_modules.dart';
 
 class CustomersScreen extends StatefulWidget {
   const CustomersScreen({super.key});
@@ -346,12 +348,13 @@ class _CustomersScreenState extends State<CustomersScreen> {
                     color: Color(0xFF64748B),
                   ),
                 ),
-                TextButton.icon(
-                  onPressed: () => _showAddEditCustomerDialog(),
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Add Customer', style: TextStyle(fontWeight: FontWeight.bold)),
-                  style: TextButton.styleFrom(foregroundColor: const Color(0xFF0A2540)),
-                ),
+                if (PermissionService.instance.canCreate(AppModules.customers))
+                  TextButton.icon(
+                    onPressed: () => _showAddEditCustomerDialog(),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add Customer', style: TextStyle(fontWeight: FontWeight.bold)),
+                    style: TextButton.styleFrom(foregroundColor: const Color(0xFF0A2540)),
+                  ),
               ],
             ),
           ),
@@ -384,16 +387,17 @@ class _CustomersScreenState extends State<CustomersScreen> {
                               style: TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
                             ),
                             const SizedBox(height: 16),
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF0A2540),
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            if (PermissionService.instance.canCreate(AppModules.customers))
+                              ElevatedButton.icon(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF0A2540),
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                ),
+                                onPressed: () => _showAddEditCustomerDialog(),
+                                icon: const Icon(Icons.add, size: 18),
+                                label: const Text('Add First Customer'),
                               ),
-                              onPressed: () => _showAddEditCustomerDialog(),
-                              icon: const Icon(Icons.add, size: 18),
-                              label: const Text('Add First Customer'),
-                            ),
                           ],
                         ),
                       )
@@ -411,17 +415,22 @@ class _CustomersScreenState extends State<CustomersScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: const Color(0xFF0A2540),
-        foregroundColor: Colors.white,
-        onPressed: () => _showAddEditCustomerDialog(),
-        tooltip: 'Add Customer',
-        child: const Icon(Icons.person_add_rounded),
-      ),
+      floatingActionButton: PermissionService.instance.canCreate(AppModules.customers)
+          ? FloatingActionButton(
+              backgroundColor: const Color(0xFF0A2540),
+              foregroundColor: Colors.white,
+              onPressed: () => _showAddEditCustomerDialog(),
+              tooltip: 'Add Customer',
+              child: const Icon(Icons.person_add_rounded),
+            )
+          : null,
     );
   }
 
   Widget _buildCustomerCard(Customer customer) {
+    final canEdit = PermissionService.instance.canEdit(AppModules.customers);
+    final canDelete = PermissionService.instance.canDelete(AppModules.customers);
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 0,
@@ -469,38 +478,41 @@ class _CustomersScreenState extends State<CustomersScreen> {
                     ],
                   ),
                 ),
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert_rounded, color: Color(0xFF64748B)),
-                  onSelected: (val) {
-                    if (val == 'edit') {
-                      _showAddEditCustomerDialog(customer);
-                    } else if (val == 'delete') {
-                      _deleteCustomer(customer);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit_outlined, size: 18),
-                          SizedBox(width: 8),
-                          Text('Edit Customer'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                          SizedBox(width: 8),
-                          Text('Delete', style: TextStyle(color: Colors.red)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                if (canEdit || canDelete)
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert_rounded, color: Color(0xFF64748B)),
+                    onSelected: (val) {
+                      if (val == 'edit') {
+                        _showAddEditCustomerDialog(customer);
+                      } else if (val == 'delete') {
+                        _deleteCustomer(customer);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      if (canEdit)
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: Row(
+                            children: [
+                              Icon(Icons.edit_outlined, size: 18),
+                              SizedBox(width: 8),
+                              Text('Edit Customer'),
+                            ],
+                          ),
+                        ),
+                      if (canDelete)
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                              SizedBox(width: 8),
+                              Text('Delete', style: TextStyle(color: Colors.red)),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
               ],
             ),
             const SizedBox(height: 10),

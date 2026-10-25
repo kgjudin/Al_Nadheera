@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/dashboard/dashboard_screen.dart';
+import '../../features/dashboard/dashboard_greeting_view.dart';
 import '../../features/sites/site_list_screen.dart';
 import '../../features/employees/employee_list_screen.dart';
 import '../../features/personal/folders_screen.dart';
@@ -21,6 +22,20 @@ import '../../features/customers/customers_screen.dart';
 import '../../features/document_templates/document_template_settings_screen.dart';
 import '../../features/ipc/ipc_list_screen.dart';
 
+class _MainTabItem {
+  final String key;
+  final String label;
+  final Widget icon;
+  final Widget selectedIcon;
+
+  const _MainTabItem({
+    required this.key,
+    required this.label,
+    required this.icon,
+    required this.selectedIcon,
+  });
+}
+
 class MainLayout extends StatefulWidget {
   const MainLayout({super.key});
 
@@ -29,7 +44,7 @@ class MainLayout extends StatefulWidget {
 }
 
 class _MainLayoutState extends State<MainLayout> {
-  int _currentIndex = 0;
+  String _currentModule = AppModules.dashboard;
   final ApiService _apiService = ApiService();
   final _permissionService = PermissionService.instance;
   final currencyFormat = NumberFormat.currency(symbol: 'BHD ', decimalDigits: 0);
@@ -85,44 +100,113 @@ class _MainLayoutState extends State<MainLayout> {
     super.dispose();
   }
 
-  Widget _buildScreenWithPermission(int index) {
-    switch (index) {
-      case 0:
+  void _navigateToModule(String moduleKey) {
+    setState(() {
+      _currentModule = moduleKey;
+    });
+  }
+
+  void _navigateToTab(int index) {
+    setState(() {
+      switch (index) {
+        case 0:
+          _currentModule = AppModules.dashboard;
+          break;
+        case 1:
+          _currentModule = AppModules.sites;
+          break;
+        case 2:
+          _currentModule = AppModules.invoices;
+          break;
+        case 3:
+          _currentModule = AppModules.employees;
+          break;
+        case 4:
+          _currentModule = AppModules.chat;
+          break;
+        case 5:
+          _currentModule = AppModules.budget;
+          break;
+        case 6:
+          _currentModule = AppModules.products;
+          break;
+        case 7:
+          _currentModule = AppModules.personal;
+          break;
+        case 8:
+          _currentModule = AppModules.customers;
+          break;
+        default:
+          _currentModule = AppModules.dashboard;
+      }
+    });
+  }
+
+  Widget _buildScreenForCurrentModule() {
+    switch (_currentModule) {
+      case AppModules.dashboard:
         return _permissionService.canView(AppModules.dashboard)
             ? const DashboardScreen()
-            : const _AccessRestrictedView(moduleTitle: 'Dashboard');
-      case 1:
+            : DashboardGreetingView(
+                onNavigateToTab: _navigateToTab,
+                onNavigateToModule: _navigateToModule,
+              );
+      case AppModules.sites:
         return _permissionService.canView(AppModules.sites)
             ? const SiteListScreen()
-            : const _AccessRestrictedView(moduleTitle: 'Sites Directory');
-      case 2:
+            : _AccessRestrictedView(
+                moduleTitle: 'Sites Directory',
+                onBackToDashboard: () => _navigateToModule(AppModules.dashboard),
+              );
+      case AppModules.invoices:
         return _permissionService.canView(AppModules.invoices)
             ? const InvoicesScreen()
-            : const _AccessRestrictedView(moduleTitle: 'Invoices & Billing');
-      case 3:
+            : _AccessRestrictedView(
+                moduleTitle: 'Invoices & Billing',
+                onBackToDashboard: () => _navigateToModule(AppModules.dashboard),
+              );
+      case AppModules.employees:
         return _permissionService.canView(AppModules.employees)
             ? const EmployeeListScreen()
-            : const _AccessRestrictedView(moduleTitle: 'Employees & Staff');
-      case 4:
+            : _AccessRestrictedView(
+                moduleTitle: 'Employees & Staff',
+                onBackToDashboard: () => _navigateToModule(AppModules.dashboard),
+              );
+      case AppModules.chat:
         return _permissionService.canView(AppModules.chat)
             ? const ChatLayoutScreen()
-            : const _AccessRestrictedView(moduleTitle: 'Team Chat');
-      case 5:
+            : _AccessRestrictedView(
+                moduleTitle: 'Team Chat',
+                onBackToDashboard: () => _navigateToModule(AppModules.dashboard),
+              );
+      case AppModules.budget:
         return _permissionService.canView(AppModules.budget)
             ? const BudgetScreen()
-            : const _AccessRestrictedView(moduleTitle: 'Accounts');
-      case 6:
+            : _AccessRestrictedView(
+                moduleTitle: 'Accounts',
+                onBackToDashboard: () => _navigateToModule(AppModules.dashboard),
+              );
+      case AppModules.products:
         return _permissionService.canView(AppModules.products)
             ? const ProductsScreen()
-            : const _AccessRestrictedView(moduleTitle: 'Products Catalog');
-      case 7:
+            : _AccessRestrictedView(
+                moduleTitle: 'Products Catalog',
+                onBackToDashboard: () => _navigateToModule(AppModules.dashboard),
+              );
+      case AppModules.personal:
         return _permissionService.canView(AppModules.personal)
             ? const FoldersScreen()
-            : const _AccessRestrictedView(moduleTitle: 'Personal Notes');
-      case 8:
+            : _AccessRestrictedView(
+                moduleTitle: 'Personal Notes',
+                onBackToDashboard: () => _navigateToModule(AppModules.dashboard),
+              );
+      case AppModules.customers:
         return _permissionService.canView(AppModules.customers)
             ? const CustomersScreen()
-            : const _AccessRestrictedView(moduleTitle: 'Customers Directory');
+            : _AccessRestrictedView(
+                moduleTitle: 'Customers Directory',
+                onBackToDashboard: () => _navigateToModule(AppModules.dashboard),
+              );
       default:
         return const DashboardScreen();
     }
@@ -271,61 +355,65 @@ class _MainLayoutState extends State<MainLayout> {
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () {
                         Navigator.pop(sheetContext);
-                        setState(() => _currentIndex = 5);
+                        _navigateToModule(AppModules.budget);
                       },
                     ),
                     const Divider(height: 1),
                   ],
 
                   // Option: Document & Print Formats (Logo, Seal, Signature, Template Settings)
-                  ListTile(
-                    leading: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0A2540).withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.print_rounded, color: Color(0xFF0A2540)),
-                    ),
-                    title: const Text('Document & Print Formats', style: TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: const Text('Company logo, seal, signature, address, and bill templates'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const DocumentTemplateSettingsScreen(),
+                  if (_permissionService.canView(AppModules.documentTemplates) || _permissionService.isAdmin) ...[
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0A2540).withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
                         ),
-                      );
-                    },
-                  ),
-                  const Divider(height: 1),
+                        child: const Icon(Icons.print_rounded, color: Color(0xFF0A2540)),
+                      ),
+                      title: const Text('Document & Print Formats', style: TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: const Text('Company logo, seal, signature, address, and bill templates'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const DocumentTemplateSettingsScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const Divider(height: 1),
+                  ],
 
                   // Option: IPC (Interim Payment Certificate / Measurement Bill)
-                  ListTile(
-                    leading: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F766E).withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.request_quote_rounded, color: Color(0xFF0F766E)),
-                    ),
-                    title: const Text('IPC', style: TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: const Text('Client measurement bills, project BOQ quantities & valuations'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const IpcListScreen(),
+                  if (_permissionService.canView(AppModules.ipc)) ...[
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F766E).withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
                         ),
-                      );
-                    },
-                  ),
-                  const Divider(height: 1),
+                        child: const Icon(Icons.request_quote_rounded, color: Color(0xFF0F766E)),
+                      ),
+                      title: const Text('IPC', style: TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: const Text('Client measurement bills, project BOQ quantities & valuations'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const IpcListScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    const Divider(height: 1),
+                  ],
 
                   // Option: Customers Directory
                   if (_permissionService.canView(AppModules.customers)) ...[
@@ -343,7 +431,7 @@ class _MainLayoutState extends State<MainLayout> {
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () {
                         Navigator.pop(sheetContext);
-                        setState(() => _currentIndex = 8);
+                        _navigateToModule(AppModules.customers);
                       },
                     ),
                     const Divider(height: 1),
@@ -365,7 +453,7 @@ class _MainLayoutState extends State<MainLayout> {
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () {
                         Navigator.pop(sheetContext);
-                        setState(() => _currentIndex = 6);
+                        _navigateToModule(AppModules.products);
                       },
                     ),
                     const Divider(height: 1),
@@ -387,7 +475,7 @@ class _MainLayoutState extends State<MainLayout> {
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () {
                         Navigator.pop(sheetContext);
-                        setState(() => _currentIndex = 7);
+                        _navigateToModule(AppModules.personal);
                       },
                     ),
                     const Divider(height: 1),
@@ -435,73 +523,96 @@ class _MainLayoutState extends State<MainLayout> {
 
   @override
   Widget build(BuildContext context) {
-    final displayIndex = _currentIndex > 4 ? 5 : _currentIndex;
-
     return AnimatedBuilder(
       animation: _permissionService,
       builder: (context, _) {
+        final List<_MainTabItem> tabItems = [
+          const _MainTabItem(
+            key: AppModules.dashboard,
+            label: 'Dashboard',
+            icon: Icon(Icons.grid_view_outlined),
+            selectedIcon: Icon(Icons.grid_view_rounded),
+          ),
+          if (_permissionService.canView(AppModules.sites))
+            const _MainTabItem(
+              key: AppModules.sites,
+              label: 'Sites',
+              icon: Icon(Icons.business_outlined),
+              selectedIcon: Icon(Icons.business_rounded),
+            ),
+          if (_permissionService.canView(AppModules.invoices))
+            const _MainTabItem(
+              key: AppModules.invoices,
+              label: 'Invoice',
+              icon: Icon(Icons.receipt_long_outlined),
+              selectedIcon: Icon(Icons.receipt_long_rounded),
+            ),
+          if (_permissionService.canView(AppModules.employees))
+            const _MainTabItem(
+              key: AppModules.employees,
+              label: 'Staff',
+              icon: Icon(Icons.people_outline),
+              selectedIcon: Icon(Icons.people_rounded),
+            ),
+          if (_permissionService.canView(AppModules.chat))
+            _MainTabItem(
+              key: AppModules.chat,
+              label: 'Chat',
+              icon: _unreadChatCount > 0
+                  ? Badge.count(
+                      count: _unreadChatCount,
+                      backgroundColor: const Color(0xFF25D366),
+                      child: const Icon(Icons.chat_bubble_outline),
+                    )
+                  : const Icon(Icons.chat_bubble_outline),
+              selectedIcon: _unreadChatCount > 0
+                  ? Badge.count(
+                      count: _unreadChatCount,
+                      backgroundColor: const Color(0xFF25D366),
+                      child: const Icon(Icons.chat_bubble_rounded),
+                    )
+                  : const Icon(Icons.chat_bubble_rounded),
+            ),
+          const _MainTabItem(
+            key: 'more',
+            label: 'More',
+            icon: Icon(Icons.more_horiz_rounded),
+            selectedIcon: Icon(Icons.more_horiz_rounded),
+          ),
+        ];
+
+        int activeIndex = tabItems.indexWhere((t) => t.key == _currentModule);
+        if (activeIndex == -1) {
+          activeIndex = tabItems.indexWhere((t) => t.key == 'more');
+        }
+        if (activeIndex == -1) activeIndex = 0;
+
         return Scaffold(
           body: Stack(
             children: [
-              _buildScreenWithPermission(_currentIndex),
+              _buildScreenForCurrentModule(),
               const FloatingAiAssistantButton(),
             ],
           ),
           bottomNavigationBar: NavigationBar(
-            selectedIndex: displayIndex,
-            onDestinationSelected: (index) {
-              if (index == 5) {
+            selectedIndex: activeIndex,
+            onDestinationSelected: (idx) {
+              final selected = tabItems[idx];
+              if (selected.key == 'more') {
                 _showMoreBottomSheet();
               } else {
                 setState(() {
-                  _currentIndex = index;
+                  _currentModule = selected.key;
                 });
               }
             },
-            destinations: [
-              const NavigationDestination(
-                icon: Icon(Icons.grid_view_outlined),
-                selectedIcon: Icon(Icons.grid_view_rounded),
-                label: 'Dashboard',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.business_outlined),
-                selectedIcon: Icon(Icons.business_rounded),
-                label: 'Sites',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.receipt_long_outlined),
-                selectedIcon: Icon(Icons.receipt_long_rounded),
-                label: 'Invoice',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.people_outline),
-                selectedIcon: Icon(Icons.people_rounded),
-                label: 'Staff',
-              ),
-              NavigationDestination(
-                icon: _unreadChatCount > 0
-                    ? Badge.count(
-                        count: _unreadChatCount,
-                        backgroundColor: const Color(0xFF25D366),
-                        child: const Icon(Icons.chat_bubble_outline),
-                      )
-                    : const Icon(Icons.chat_bubble_outline),
-                selectedIcon: _unreadChatCount > 0
-                    ? Badge.count(
-                        count: _unreadChatCount,
-                        backgroundColor: const Color(0xFF25D366),
-                        child: const Icon(Icons.chat_bubble_rounded),
-                      )
-                    : const Icon(Icons.chat_bubble_rounded),
-                label: 'Chat',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.more_horiz_rounded),
-                selectedIcon: Icon(Icons.more_horiz_rounded),
-                label: 'More',
-              ),
-            ],
+            destinations: tabItems.map((item) {
+              return NavigationDestination(
+                icon: item.icon,
+                selectedIcon: item.selectedIcon,
+                label: item.label,
+              );
+            }).toList(),
           ),
         );
       },
@@ -511,7 +622,12 @@ class _MainLayoutState extends State<MainLayout> {
 
 class _AccessRestrictedView extends StatelessWidget {
   final String moduleTitle;
-  const _AccessRestrictedView({required this.moduleTitle});
+  final VoidCallback? onBackToDashboard;
+
+  const _AccessRestrictedView({
+    required this.moduleTitle,
+    this.onBackToDashboard,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -532,10 +648,10 @@ class _AccessRestrictedView extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(22),
                 decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.1),
+                  color: const Color(0xFF0B5ED7).withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.lock_person_rounded, size: 54, color: Colors.redAccent),
+                child: const Icon(Icons.shield_outlined, size: 54, color: Color(0xFF0B5ED7)),
               ),
               const SizedBox(height: 20),
               Text(
@@ -544,10 +660,23 @@ class _AccessRestrictedView extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Text(
-                'Your current assigned role (${PermissionService.instance.currentRole}) does not have permission to access this module.\n\nPlease contact a Super Admin or Admin to request access permissions.',
+                'This module is not currently enabled for your assigned role (${PermissionService.instance.currentRole}).\n\nPlease contact a Super Admin if you need access to this section.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 13, color: Colors.grey[700], height: 1.4),
               ),
+              const SizedBox(height: 24),
+              if (onBackToDashboard != null)
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0A2540),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: onBackToDashboard,
+                  icon: const Icon(Icons.home_rounded, size: 18),
+                  label: const Text('Back to Home Dashboard', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
             ],
           ),
         ),

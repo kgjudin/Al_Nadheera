@@ -8,6 +8,8 @@ import '../../services/api_service.dart';
 import 'create_edit_ipc_screen.dart';
 import 'services/ipc_excel_generator.dart';
 import 'services/ipc_pdf_generator.dart';
+import '../../services/permission_service.dart';
+import '../../core/constants/app_modules.dart';
 
 class IpcListScreen extends StatefulWidget {
   const IpcListScreen({super.key});
@@ -211,17 +213,18 @@ class _IpcListScreenState extends State<IpcListScreen> {
                         style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
                       ),
                       const SizedBox(height: 20),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0A2540),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      if (PermissionService.instance.canCreate(AppModules.ipc))
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0A2540),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          onPressed: () => _openCreateEdit(),
+                          icon: const Icon(Icons.add),
+                          label: const Text('Create First IPC Bill', style: TextStyle(fontWeight: FontWeight.bold)),
                         ),
-                        onPressed: () => _openCreateEdit(),
-                        icon: const Icon(Icons.add),
-                        label: const Text('Create First IPC Bill', style: TextStyle(fontWeight: FontWeight.bold)),
-                      ),
                     ],
                   ),
                 ),
@@ -336,13 +339,15 @@ class _IpcListScreenState extends State<IpcListScreen> {
           },
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF0A2540),
-        foregroundColor: Colors.white,
-        onPressed: () => _openCreateEdit(),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('New IPC Bill', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
+      floatingActionButton: PermissionService.instance.canCreate(AppModules.ipc)
+          ? FloatingActionButton.extended(
+              backgroundColor: const Color(0xFF0A2540),
+              foregroundColor: Colors.white,
+              onPressed: () => _openCreateEdit(),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('New IPC Bill', style: TextStyle(fontWeight: FontWeight.bold)),
+            )
+          : null,
     );
   }
 
@@ -475,16 +480,18 @@ class _IpcListScreenState extends State<IpcListScreen> {
                         tooltip: 'Print PDF',
                         onPressed: () => _printPdf(doc),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.edit_outlined, color: Color(0xFF0284C7), size: 20),
-                        tooltip: 'Edit IPC',
-                        onPressed: () => _openCreateEdit(doc),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
-                        tooltip: 'Delete IPC',
-                        onPressed: () => _confirmDelete(doc),
-                      ),
+                      if (PermissionService.instance.canEdit(AppModules.ipc))
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined, color: Color(0xFF0284C7), size: 20),
+                          tooltip: 'Edit IPC',
+                          onPressed: () => _openCreateEdit(doc),
+                        ),
+                      if (PermissionService.instance.canDelete(AppModules.ipc))
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
+                          tooltip: 'Delete IPC',
+                          onPressed: () => _confirmDelete(doc),
+                        ),
                     ],
                   ),
                 ],

@@ -6,6 +6,8 @@ import '../../models/site_model.dart';
 import 'add_edit_site_screen.dart';
 import 'site_details_screen.dart';
 import '../../core/widgets/profile_avatar_button.dart';
+import '../../services/permission_service.dart';
+import '../../core/constants/app_modules.dart';
 
 class SiteListScreen extends StatefulWidget {
   const SiteListScreen({super.key});
@@ -193,10 +195,12 @@ class _SiteListScreenState extends State<SiteListScreen> {
           },
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _navigateToAddSite(),
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: PermissionService.instance.canCreate(AppModules.sites)
+          ? FloatingActionButton(
+              onPressed: () => _navigateToAddSite(),
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 

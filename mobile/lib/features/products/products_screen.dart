@@ -4,6 +4,8 @@ import '../../core/widgets/profile_avatar_button.dart';
 import '../../models/product_model.dart';
 import '../../services/api_service.dart';
 import 'add_product_screen.dart';
+import '../../services/permission_service.dart';
+import '../../core/constants/app_modules.dart';
 
 class _ProductsCatalogData {
   final List<Product> products;
@@ -523,15 +525,17 @@ class _ProductsScreenState extends State<ProductsScreen> {
           },
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: const Color(0xFF0A2540),
-        foregroundColor: Colors.white,
-        onPressed: () => _openAddEditProductScreen(
-          initialClassName: _selectedClassFilter != 'All' ? _selectedClassFilter : null,
-        ),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Add Specification', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
+      floatingActionButton: PermissionService.instance.canCreate(AppModules.products)
+          ? FloatingActionButton.extended(
+              backgroundColor: const Color(0xFF0A2540),
+              foregroundColor: Colors.white,
+              onPressed: () => _openAddEditProductScreen(
+                initialClassName: _selectedClassFilter != 'All' ? _selectedClassFilter : null,
+              ),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Add Specification', style: TextStyle(fontWeight: FontWeight.bold)),
+            )
+          : null,
     );
   }
 
@@ -910,21 +914,24 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                     ),
 
                                     // Edit and Delete Actions
-                                    IconButton(
-                                      icon: const Icon(Icons.edit_outlined, size: 18, color: Color(0xFF64748B)),
-                                      tooltip: 'Edit Specification',
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      onPressed: () => _openAddEditProductScreen(existingProduct: product),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.redAccent),
-                                      tooltip: 'Delete Specification',
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
-                                      onPressed: () => _confirmDeleteProduct(product),
-                                    ),
+                                    if (PermissionService.instance.canEdit(AppModules.products))
+                                      IconButton(
+                                        icon: const Icon(Icons.edit_outlined, size: 18, color: Color(0xFF64748B)),
+                                        tooltip: 'Edit Specification',
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        onPressed: () => _openAddEditProductScreen(existingProduct: product),
+                                      ),
+                                    if (PermissionService.instance.canDelete(AppModules.products)) ...[
+                                      const SizedBox(width: 10),
+                                      IconButton(
+                                        icon: const Icon(Icons.delete_outline_rounded, size: 18, color: Colors.redAccent),
+                                        tooltip: 'Delete Specification',
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        onPressed: () => _confirmDeleteProduct(product),
+                                      ),
+                                    ],
                                   ],
                                 ),
                               );
@@ -1033,39 +1040,43 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     ),
                   ),
                 ),
-                PopupMenuButton<String>(
-                  padding: EdgeInsets.zero,
-                  icon: const Icon(Icons.more_vert_rounded, color: Color(0xFF64748B), size: 20),
-                  onSelected: (value) {
-                    if (value == 'edit') {
-                      _openAddEditProductScreen(existingProduct: product);
-                    } else if (value == 'delete') {
-                      _confirmDeleteProduct(product);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit_outlined, size: 18),
-                          SizedBox(width: 8),
-                          Text('Edit Specification'),
-                        ],
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete_outline_rounded, color: Colors.red, size: 18),
-                          SizedBox(width: 8),
-                          Text('Delete Specification', style: TextStyle(color: Colors.red)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                if (PermissionService.instance.canEdit(AppModules.products) ||
+                    PermissionService.instance.canDelete(AppModules.products))
+                  PopupMenuButton<String>(
+                    padding: EdgeInsets.zero,
+                    icon: const Icon(Icons.more_vert_rounded, color: Color(0xFF64748B), size: 20),
+                    onSelected: (value) {
+                      if (value == 'edit') {
+                        _openAddEditProductScreen(existingProduct: product);
+                      } else if (value == 'delete') {
+                        _confirmDeleteProduct(product);
+                      }
+                    },
+                    itemBuilder: (context) => [
+                      if (PermissionService.instance.canEdit(AppModules.products))
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: Row(
+                            children: [
+                              Icon(Icons.edit_outlined, size: 18),
+                              SizedBox(width: 8),
+                              Text('Edit Specification'),
+                            ],
+                          ),
+                        ),
+                      if (PermissionService.instance.canDelete(AppModules.products))
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete_outline_rounded, color: Colors.red, size: 18),
+                              SizedBox(width: 8),
+                              Text('Delete Specification', style: TextStyle(color: Colors.red)),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
               ],
             ),
 

@@ -5,6 +5,8 @@ class Employee {
   final String? phone;
   final String? email;
   final String? role;
+  final String? roleId;
+  final Map<String, dynamic>? customPermissions;
   final DateTime? joiningDate;
   final String? assignedSiteId;
   final String? assignedSiteName;
@@ -24,6 +26,8 @@ class Employee {
     this.phone,
     this.email,
     this.role,
+    this.roleId,
+    this.customPermissions,
     this.joiningDate,
     this.assignedSiteId,
     this.assignedSiteName,
@@ -45,6 +49,10 @@ class Employee {
       phone: json['phone'],
       email: json['email'],
       role: json['role'],
+      roleId: json['role_id'],
+      customPermissions: json['custom_permissions'] != null && json['custom_permissions'] is Map
+          ? Map<String, dynamic>.from(json['custom_permissions'])
+          : null,
       joiningDate: json['joining_date'] != null ? DateTime.tryParse(json['joining_date']) : null,
       assignedSiteId: json['assigned_site_id'],
       assignedSiteName: json['site'] != null ? json['site']['name'] : null,
@@ -67,6 +75,8 @@ class Employee {
       'phone': phone,
       'email': email,
       'role': role,
+      'role_id': roleId,
+      'custom_permissions': customPermissions,
       'joining_date': joiningDate?.toIso8601String().split('T').first,
       'assigned_site_id': assignedSiteId,
       'status': status,

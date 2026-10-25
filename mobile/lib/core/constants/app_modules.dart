@@ -11,6 +11,8 @@ class AppModules {
   static const String chat = 'chat';
   static const String products = 'products';
   static const String personal = 'personal';
+  static const String ipc = 'ipc';
+  static const String documentTemplates = 'document_templates';
   static const String roleManagement = 'role_management';
 
   // Site Sub-Options / Tabs Inside Site Details
@@ -30,6 +32,8 @@ class AppModules {
     invoices,
     employees,
     budget,
+    ipc,
+    documentTemplates,
     chat,
     products,
     personal,
@@ -74,6 +78,10 @@ class AppModules {
         return 'Products Catalog';
       case personal:
         return 'Personal Notes';
+      case ipc:
+        return 'IPC (Interim Payment Certificate)';
+      case documentTemplates:
+        return 'Document & Print Formats';
       case roleManagement:
         return 'Role & Access Control';
       case siteSummary:
@@ -119,6 +127,10 @@ class AppModules {
         return 'Materials price list and item specs.';
       case personal:
         return 'Private workspace notes and folders.';
+      case ipc:
+        return 'Client measurement bills, project BOQ quantities, and valuations.';
+      case documentTemplates:
+        return 'Company logo, seal, signature, address, and bill templates.';
       case roleManagement:
         return 'Manage roles, custom employee roles, and permissions.';
       case siteSummary:
@@ -164,6 +176,10 @@ class AppModules {
         return Icons.inventory_2_outlined;
       case personal:
         return Icons.folder_shared_outlined;
+      case ipc:
+        return Icons.request_quote_outlined;
+      case documentTemplates:
+        return Icons.print_outlined;
       case roleManagement:
         return Icons.admin_panel_settings_outlined;
       case siteSummary:

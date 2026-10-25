@@ -8,6 +8,7 @@ import 'features/auth/login_screen.dart';
 import 'core/widgets/main_layout.dart';
 import 'features/chat/services/presence_service.dart';
 import 'services/location_service.dart';
+import 'services/permission_service.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -162,6 +163,8 @@ class _InitialAuthCheckState extends State<InitialAuthCheck> {
             debugPrint('Error verifying employee status in InitialAuthCheck: $e');
           }
         }
+
+        await PermissionService.instance.loadUserPermissions();
 
         if (mounted) {
           Navigator.of(context).pushReplacement(

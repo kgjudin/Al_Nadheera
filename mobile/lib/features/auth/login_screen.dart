@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/widgets/main_layout.dart';
 import '../../services/api_service.dart';
+import '../../services/permission_service.dart';
 
 class LoginScreen extends StatefulWidget {
   final String? initialMessage;
@@ -229,6 +230,8 @@ class _LoginScreenState extends State<LoginScreen> {
           debugPrint('Error verifying approval status during sign-in: $e');
         }
       }
+
+      await PermissionService.instance.loadUserPermissions();
 
       if (mounted) {
         Navigator.of(context).pushReplacement(

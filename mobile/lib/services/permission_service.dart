@@ -31,25 +31,33 @@ class PermissionService extends ChangeNotifier {
   bool canView(String moduleKey) {
     if (_isSuperAdmin) return true;
     final p = _permissions[moduleKey];
-    return p?.canView ?? false;
+    if (p != null) return p.canView;
+    if (_isAdmin) return true;
+    return false;
   }
 
   bool canCreate(String moduleKey) {
     if (_isSuperAdmin) return true;
     final p = _permissions[moduleKey];
-    return p?.canCreate ?? false;
+    if (p != null) return p.canCreate;
+    if (_isAdmin) return true;
+    return false;
   }
 
   bool canEdit(String moduleKey) {
     if (_isSuperAdmin) return true;
     final p = _permissions[moduleKey];
-    return p?.canEdit ?? false;
+    if (p != null) return p.canEdit;
+    if (_isAdmin) return true;
+    return false;
   }
 
   bool canDelete(String moduleKey) {
     if (_isSuperAdmin) return true;
     final p = _permissions[moduleKey];
-    return p?.canDelete ?? false;
+    if (p != null) return p.canDelete;
+    if (_isAdmin) return moduleKey != AppModules.roleManagement;
+    return false;
   }
 
   /// Initialize or refresh user permissions from Supabase
@@ -64,12 +72,28 @@ class PermissionService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Fetch employee record for current user
-      final employeeRes = await _supabase
-        .from('employees')
-        .select('role, role_id, custom_permissions')
-        .eq('id', user.id)
-        .maybeSingle();
+      // 1. Fetch employee record for current user (check both id and email safely)
+      Map<String, dynamic>? employeeRes;
+      try {
+        final email = user.email?.trim();
+        if (email != null && email.isNotEmpty) {
+          final res = await _supabase
+              .from('employees')
+              .select('id, role, role_id, custom_permissions')
+              .or('id.eq.${user.id},email.ilike.$email')
+              .maybeSingle();
+          employeeRes = res;
+        } else {
+          final res = await _supabase
+              .from('employees')
+              .select('id, role, role_id, custom_permissions')
+              .eq('id', user.id)
+              .maybeSingle();
+          employeeRes = res;
+        }
+      } catch (e) {
+        debugPrint('Error fetching employee record in loadUserPermissions: $e');
+      }
 
       String roleName = 'Employee';
       String? roleId;
@@ -86,11 +110,29 @@ class PermissionService extends ChangeNotifier {
         roleName = user.userMetadata?['role']?.toString() ?? 'Employee';
       }
 
+      // Check for project owner accounts (Judin / Super Admin)
+      final userEmailLower = user.email?.trim().toLowerCase() ?? '';
+      final isOwner = userEmailLower == 'judin@gmail.com' ||
+          userEmailLower == 'superadmin@alnadheera.com' ||
+          user.userMetadata?['role']?.toString().trim().toLowerCase() == 'super admin';
+
+      if (isOwner) {
+        roleName = 'Super Admin';
+        roleId = '21bb0756-c858-41c5-946e-abb69ed749e0';
+        // Auto-heal employees table if accidentally demoted
+        if (employeeRes != null && employeeRes['role']?.toString().toLowerCase() != 'super admin') {
+          _supabase.from('employees').update({
+            'role': 'Super Admin',
+            'role_id': '21bb0756-c858-41c5-946e-abb69ed749e0',
+          }).eq('id', employeeRes['id']).then((_) {}).catchError((_) {});
+        }
+      }
+
       _currentRole = roleName;
       _currentRoleId = roleId;
 
       final normalizedRole = roleName.trim().toLowerCase();
-      _isSuperAdmin = normalizedRole == 'super admin';
+      _isSuperAdmin = isOwner || normalizedRole == 'super admin';
       _isAdmin = normalizedRole == 'admin' || _isSuperAdmin;
       _isManager = normalizedRole == 'manager' || _isAdmin;
 
@@ -145,14 +187,50 @@ class PermissionService extends ChangeNotifier {
           baseMap[mod] = ModulePermission.fromJson(match);
         } else {
           final isRestricted = mod.contains('budget') || mod == AppModules.roleManagement;
-          final isInvoiceOrCust = mod == AppModules.invoices || mod == AppModules.customers;
-          baseMap[mod] = ModulePermission(
-            moduleKey: mod,
-            canView: isInvoiceOrCust || (_isManager && !isRestricted),
-            canCreate: isInvoiceOrCust || (_isManager && !isRestricted),
-            canEdit: isInvoiceOrCust || (_isManager && !isRestricted),
-            canDelete: _isAdmin || (_isManager && isInvoiceOrCust),
-          );
+          final isStaffDefaultAllowed = mod == AppModules.sites ||
+              mod == AppModules.chat ||
+              mod == AppModules.products ||
+              mod == AppModules.personal ||
+              mod == AppModules.siteSummary ||
+              mod == AppModules.siteTasks ||
+              mod == AppModules.siteLabour ||
+              mod == AppModules.siteMaterials ||
+              mod == AppModules.siteChat;
+
+          if (_isAdmin) {
+            baseMap[mod] = ModulePermission(
+              moduleKey: mod,
+              canView: true,
+              canCreate: true,
+              canEdit: true,
+              canDelete: mod != AppModules.roleManagement,
+            );
+          } else if (_isManager) {
+            baseMap[mod] = ModulePermission(
+              moduleKey: mod,
+              canView: mod != AppModules.roleManagement,
+              canCreate: !isRestricted,
+              canEdit: !isRestricted,
+              canDelete: false,
+            );
+          } else {
+            // Default role (Employee / Staff)
+            baseMap[mod] = ModulePermission(
+              moduleKey: mod,
+              canView: isStaffDefaultAllowed,
+              canCreate: mod == AppModules.chat ||
+                  mod == AppModules.personal ||
+                  mod == AppModules.siteTasks ||
+                  mod == AppModules.siteLabour ||
+                  mod == AppModules.siteMaterials ||
+                  mod == AppModules.siteChat,
+              canEdit: mod == AppModules.chat ||
+                  mod == AppModules.personal ||
+                  mod == AppModules.siteTasks ||
+                  mod == AppModules.siteChat,
+              canDelete: false,
+            );
+          }
         }
       }
 
@@ -164,10 +242,10 @@ class PermissionService extends ChangeNotifier {
             final val = Map<String, dynamic>.from(entry.value);
             final current = baseMap[mod] ?? ModulePermission(moduleKey: mod);
             baseMap[mod] = current.copyWith(
-              canView: val['can_view'] == true,
-              canCreate: val['can_create'] == true,
-              canEdit: val['can_edit'] == true,
-              canDelete: val['can_delete'] == true,
+              canView: val['can_view'] == true || val['can_view'] == 1 || val['can_view']?.toString() == 'true',
+              canCreate: val['can_create'] == true || val['can_create'] == 1 || val['can_create']?.toString() == 'true',
+              canEdit: val['can_edit'] == true || val['can_edit'] == 1 || val['can_edit']?.toString() == 'true',
+              canDelete: val['can_delete'] == true || val['can_delete'] == 1 || val['can_delete']?.toString() == 'true',
             );
           }
         }
@@ -363,12 +441,28 @@ class PermissionService extends ChangeNotifier {
           .eq('id', employeeId);
 
       // If updating logged in user, refresh
-      if (_supabase.auth.currentUser?.id == employeeId) {
+      final currentAuthUser = _supabase.auth.currentUser;
+      if (currentAuthUser != null && currentAuthUser.id == employeeId) {
         await loadUserPermissions();
       }
     } catch (e) {
       debugPrint('Error setting employee custom permissions: $e');
       rethrow;
+    }
+  }
+
+  /// Get fresh employee details from employees table
+  Future<Map<String, dynamic>?> getCurrentOrEmployeeDetails(String employeeId) async {
+    try {
+      final res = await _supabase
+          .from('employees')
+          .select('id, role, role_id, custom_permissions')
+          .eq('id', employeeId)
+          .maybeSingle();
+      return res;
+    } catch (e) {
+      debugPrint('Error fetching employee details: $e');
+      return null;
     }
   }
 }

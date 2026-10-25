@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../services/api_service.dart';
 import '../../../models/financial_models.dart';
+import '../../../services/permission_service.dart';
+import '../../../core/constants/app_modules.dart';
 
 class SiteAdditionalExpenseTab extends StatefulWidget {
   final String siteId;
@@ -244,23 +246,25 @@ class _SiteAdditionalExpenseTabState extends State<SiteAdditionalExpenseTab> {
           );
         },
       ),
-      bottomSheet: Container(
-        color: Colors.white,
-        padding: const EdgeInsets.all(16),
-        child: SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0A2540),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            onPressed: _showAddDialog,
-            icon: const Icon(Icons.add, color: Colors.white),
-            label: const Text('ADD EXPENSE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
-          ),
-        ),
-      ),
+      bottomSheet: PermissionService.instance.canCreate(AppModules.siteAdditionalExpenses)
+          ? Container(
+              color: Colors.white,
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF0A2540),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  onPressed: _showAddDialog,
+                  icon: const Icon(Icons.add, color: Colors.white),
+                  label: const Text('ADD EXPENSE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15)),
+                ),
+              ),
+            )
+          : null,
     );
   }
 

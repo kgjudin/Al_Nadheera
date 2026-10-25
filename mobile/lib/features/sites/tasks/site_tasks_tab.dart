@@ -4,6 +4,8 @@ import '../../../services/api_service.dart';
 import '../../../models/task_model.dart';
 import '../../../models/employee_model.dart';
 import 'widgets/task_details_sheet.dart';
+import '../../../services/permission_service.dart';
+import '../../../core/constants/app_modules.dart';
 
 class SiteTasksTab extends StatefulWidget {
   final String siteId;
@@ -1421,7 +1423,7 @@ class _SiteTasksTabState extends State<SiteTasksTab> {
         },
       ),
       bottomNavigationBar: _selectedTaskIds.isNotEmpty ? _buildBulkActionBar() : null,
-      floatingActionButton: _selectedTaskIds.isEmpty
+      floatingActionButton: _selectedTaskIds.isEmpty && PermissionService.instance.canCreate(AppModules.siteTasks)
           ? FloatingActionButton.extended(
               onPressed: () => _showAddEditTaskDialog(),
               backgroundColor: const Color(0xFF0A2540),
@@ -2173,27 +2175,32 @@ class _SiteTasksTabState extends State<SiteTasksTab> {
                                   ],
                                 ),
                               ),
-                              const PopupMenuDivider(),
-                              const PopupMenuItem(
-                                value: 'edit',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.edit, size: 16),
-                                    SizedBox(width: 8),
-                                    Text('Edit Task'),
-                                  ],
+                              if (PermissionService.instance.canEdit(AppModules.siteTasks)) ...[
+                                const PopupMenuDivider(),
+                                const PopupMenuItem(
+                                  value: 'edit',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.edit, size: 16),
+                                      SizedBox(width: 8),
+                                      Text('Edit Task'),
+                                    ],
+                                  ),
                                 ),
-                              ),
-                              const PopupMenuItem(
-                                value: 'delete',
-                                child: Row(
-                                  children: [
-                                    Icon(Icons.delete, color: Colors.red, size: 16),
-                                    SizedBox(width: 8),
-                                    Text('Delete Task', style: TextStyle(color: Colors.red)),
-                                  ],
+                              ],
+                              if (PermissionService.instance.canDelete(AppModules.siteTasks)) ...[
+                                const PopupMenuDivider(),
+                                const PopupMenuItem(
+                                  value: 'delete',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.delete, color: Colors.red, size: 16),
+                                      SizedBox(width: 8),
+                                      Text('Delete Task', style: TextStyle(color: Colors.red)),
+                                    ],
+                                  ),
                                 ),
-                              ),
+                              ],
                             ],
                           ),
                         ],

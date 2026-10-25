@@ -9,6 +9,8 @@ import '../../services/site_budget_service.dart';
 import '../../services/capital_budget_service.dart';
 import 'budget_detail_screen.dart';
 import 'site_budget_history_dialog.dart';
+import '../../services/permission_service.dart';
+import '../../core/constants/app_modules.dart';
 
 class BudgetScreen extends StatefulWidget {
   const BudgetScreen({super.key});
@@ -1574,25 +1576,27 @@ class _BudgetScreenState extends State<BudgetScreen> with SingleTickerProviderSt
           _buildCapitalBudgetTab(),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          if (_tabController.index == 0) {
-            _showQuickAssignSitePicker();
-          } else if (_tabController.index == 1) {
-            _showIncomeDialog();
-          } else {
-            _showAddEditBankDialog();
-          }
-        },
-        backgroundColor: const Color(0xFF0A2540),
-        icon: const Icon(Icons.add_rounded, color: Colors.white),
-        label: Text(
-          _tabController.index == 0
-              ? 'Assign / Add Site Budget'
-              : (_tabController.index == 1 ? 'Add Budget File' : 'Add Bank'),
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-      ),
+      floatingActionButton: PermissionService.instance.canCreate(AppModules.budget)
+          ? FloatingActionButton.extended(
+              onPressed: () {
+                if (_tabController.index == 0) {
+                  _showQuickAssignSitePicker();
+                } else if (_tabController.index == 1) {
+                  _showIncomeDialog();
+                } else {
+                  _showAddEditBankDialog();
+                }
+              },
+              backgroundColor: const Color(0xFF0A2540),
+              icon: const Icon(Icons.add_rounded, color: Colors.white),
+              label: Text(
+                _tabController.index == 0
+                    ? 'Assign / Add Site Budget'
+                    : (_tabController.index == 1 ? 'Add Budget File' : 'Add Bank'),
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            )
+          : null,
     );
   }
 

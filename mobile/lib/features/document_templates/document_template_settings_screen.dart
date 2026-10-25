@@ -5,6 +5,8 @@ import '../../models/invoice_model.dart';
 import '../../services/document_template_service.dart';
 import 'live_pdf_template_designer_screen.dart';
 import '../invoices/b2b_document_form_screen.dart';
+import '../../services/permission_service.dart';
+import '../../core/constants/app_modules.dart';
 
 class DocumentTemplateSettingsScreen extends StatefulWidget {
   const DocumentTemplateSettingsScreen({super.key});
@@ -228,6 +230,14 @@ class _DocumentTemplateSettingsScreenState
   }
 
   Future<void> _saveCurrentTemplate() async {
+    final canEdit = PermissionService.instance.canEdit(AppModules.documentTemplates) || PermissionService.instance.isAdmin;
+    if (!canEdit) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You do not have permission to modify document templates.')),
+      );
+      return;
+    }
+
     setState(() => _isSaving = true);
     final tmpl = _buildCurrentTemplate();
     final ok = await _service.saveTemplate(tmpl);
@@ -246,6 +256,14 @@ class _DocumentTemplateSettingsScreenState
   }
 
   Future<void> _applyToAllTemplates() async {
+    final canEdit = PermissionService.instance.canEdit(AppModules.documentTemplates) || PermissionService.instance.isAdmin;
+    if (!canEdit) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You do not have permission to modify document templates.')),
+      );
+      return;
+    }
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
