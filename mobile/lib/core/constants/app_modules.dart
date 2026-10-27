@@ -12,6 +12,7 @@ class AppModules {
   static const String products = 'products';
   static const String personal = 'personal';
   static const String ipc = 'ipc';
+  static const String reminders = 'reminders';
   static const String documentTemplates = 'document_templates';
   static const String roleManagement = 'role_management';
 
@@ -32,6 +33,7 @@ class AppModules {
     invoices,
     employees,
     budget,
+    reminders,
     ipc,
     documentTemplates,
     chat,
@@ -80,6 +82,8 @@ class AppModules {
         return 'Personal Notes';
       case ipc:
         return 'IPC (Interim Payment Certificate)';
+      case reminders:
+        return 'Reminders & Renewals';
       case documentTemplates:
         return 'Document & Print Formats';
       case roleManagement:
@@ -129,6 +133,8 @@ class AppModules {
         return 'Private workspace notes and folders.';
       case ipc:
         return 'Client measurement bills, project BOQ quantities, and valuations.';
+      case reminders:
+        return 'Manage visa, passport, civil ID, employee renewals, and personal reminders.';
       case documentTemplates:
         return 'Company logo, seal, signature, address, and bill templates.';
       case roleManagement:
@@ -178,6 +184,8 @@ class AppModules {
         return Icons.folder_shared_outlined;
       case ipc:
         return Icons.request_quote_outlined;
+      case reminders:
+        return Icons.notification_important_outlined;
       case documentTemplates:
         return Icons.print_outlined;
       case roleManagement:

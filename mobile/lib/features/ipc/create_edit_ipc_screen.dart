@@ -8,6 +8,7 @@ import '../../services/api_service.dart';
 import '../../services/invoice_number_service.dart';
 import 'services/ipc_excel_generator.dart';
 import 'services/ipc_pdf_generator.dart';
+import 'ipc_list_screen.dart';
 
 class _IpcSectionItem {
   final TextEditingController itemNumberCtrl;
@@ -99,14 +100,9 @@ class _IpcDeductionRow {
   final TextEditingController itemNoCtrl;
   final TextEditingController descriptionCtrl;
   final TextEditingController unitCtrl;
-  final TextEditingController contractRateCtrl;
-  final TextEditingController prevQtyCtrl;
-  final TextEditingController prevAmountCtrl;
-  final TextEditingController thisPeriodQtyCtrl;
-  final TextEditingController thisPeriodAmountCtrl;
-  final TextEditingController cumulativeQtyCtrl;
-  final TextEditingController cumulativeAmountCtrl;
-  final TextEditingController remarksCtrl;
+  final TextEditingController quantityCtrl;
+  final TextEditingController rateCtrl;
+  final TextEditingController amountCtrl;
   bool isHighlighted;
   String? highlightColor;
 
@@ -114,40 +110,43 @@ class _IpcDeductionRow {
     String itemNumber = '',
     String description = '',
     String unit = '',
-    String contractRate = '',
-    String prevQty = '',
-    String prevAmount = '',
-    String thisPeriodQty = '',
-    String thisPeriodAmount = '',
-    String cumulativeQty = '',
-    String cumulativeAmount = '',
-    String remarks = '',
+    String quantity = '',
+    String rate = '',
+    String amount = '',
     this.isHighlighted = false,
     this.highlightColor,
   })  : itemNoCtrl = TextEditingController(text: itemNumber),
         descriptionCtrl = TextEditingController(text: description),
         unitCtrl = TextEditingController(text: unit),
-        contractRateCtrl = TextEditingController(text: contractRate),
-        prevQtyCtrl = TextEditingController(text: prevQty),
-        prevAmountCtrl = TextEditingController(text: prevAmount),
-        thisPeriodQtyCtrl = TextEditingController(text: thisPeriodQty),
-        thisPeriodAmountCtrl = TextEditingController(text: thisPeriodAmount),
-        cumulativeQtyCtrl = TextEditingController(text: cumulativeQty),
-        cumulativeAmountCtrl = TextEditingController(text: cumulativeAmount),
-        remarksCtrl = TextEditingController(text: remarks);
+        quantityCtrl = TextEditingController(text: quantity),
+        rateCtrl = TextEditingController(text: rate),
+        amountCtrl = TextEditingController(text: amount);
+
+  double get quantity => double.tryParse(quantityCtrl.text.trim().replaceAll(',', '')) ?? 0.0;
+  double get rate => double.tryParse(rateCtrl.text.trim().replaceAll(',', '')) ?? 0.0;
+  double get amount {
+    final parsedAmt = double.tryParse(amountCtrl.text.trim().replaceAll(',', ''));
+    if (parsedAmt != null && parsedAmt > 0) return parsedAmt;
+    if (quantity > 0 && rate > 0) return quantity * rate;
+    if (rate > 0) return rate;
+    return 0.0;
+  }
+
+  void recalculateAmount() {
+    if (quantity > 0 && rate > 0) {
+      amountCtrl.text = (quantity * rate).toStringAsFixed(3);
+    } else if (rate > 0 && amountCtrl.text.trim().isEmpty) {
+      amountCtrl.text = rate.toStringAsFixed(3);
+    }
+  }
 
   void dispose() {
     itemNoCtrl.dispose();
     descriptionCtrl.dispose();
     unitCtrl.dispose();
-    contractRateCtrl.dispose();
-    prevQtyCtrl.dispose();
-    prevAmountCtrl.dispose();
-    thisPeriodQtyCtrl.dispose();
-    thisPeriodAmountCtrl.dispose();
-    cumulativeQtyCtrl.dispose();
-    cumulativeAmountCtrl.dispose();
-    remarksCtrl.dispose();
+    quantityCtrl.dispose();
+    rateCtrl.dispose();
+    amountCtrl.dispose();
   }
 }
 
@@ -208,14 +207,9 @@ class _CreateEditIpcScreenState extends State<CreateEditIpcScreen> {
             itemNumber: d.itemNumber ?? '',
             description: d.description,
             unit: d.unit ?? '',
-            contractRate: d.contractRate != null && d.contractRate! > 0 ? d.contractRate!.toStringAsFixed(3) : '',
-            prevQty: d.previousQuantity != null && d.previousQuantity! > 0 ? d.previousQuantity!.toStringAsFixed(3) : '',
-            prevAmount: d.previousAmount != null && d.previousAmount! > 0 ? d.previousAmount!.toStringAsFixed(3) : '',
-            thisPeriodQty: d.thisPeriodQuantity != null && d.thisPeriodQuantity! > 0 ? d.thisPeriodQuantity!.toStringAsFixed(3) : '',
-            thisPeriodAmount: d.thisPeriodAmount != null && d.thisPeriodAmount! > 0 ? d.thisPeriodAmount!.toStringAsFixed(3) : '',
-            cumulativeQty: d.cumulativeQuantity != null && d.cumulativeQuantity! > 0 ? d.cumulativeQuantity!.toStringAsFixed(3) : '',
-            cumulativeAmount: d.cumulativeAmount != null && d.cumulativeAmount! > 0 ? d.cumulativeAmount!.toStringAsFixed(3) : '',
-            remarks: d.remarks ?? '',
+            quantity: d.effectiveQuantity > 0 ? d.effectiveQuantity.toStringAsFixed(3) : '',
+            rate: d.effectiveRate > 0 ? d.effectiveRate.toStringAsFixed(3) : '',
+            amount: d.effectiveAmount > 0 ? d.effectiveAmount.toStringAsFixed(3) : '',
             isHighlighted: d.isHighlighted,
             highlightColor: d.highlightColor,
           ));
@@ -536,18 +530,16 @@ class _CreateEditIpcScreenState extends State<CreateEditIpcScreen> {
       int dOrder = 0;
       for (final d in _deductions) {
         if (d.descriptionCtrl.text.trim().isEmpty && d.itemNoCtrl.text.trim().isEmpty) continue;
+        final qty = d.quantity > 0 ? d.quantity : (d.quantityCtrl.text.trim().isNotEmpty ? double.tryParse(d.quantityCtrl.text.trim().replaceAll(',', '')) : null);
+        final rate = d.rate > 0 ? d.rate : (d.rateCtrl.text.trim().isNotEmpty ? double.tryParse(d.rateCtrl.text.trim().replaceAll(',', '')) : null);
+        final amt = d.amount;
         deductionItems.add(IpcDeductionItem(
           itemNumber: d.itemNoCtrl.text.trim().isNotEmpty ? d.itemNoCtrl.text.trim() : null,
           description: d.descriptionCtrl.text.trim(),
           unit: d.unitCtrl.text.trim().isNotEmpty ? d.unitCtrl.text.trim() : null,
-          contractRate: double.tryParse(d.contractRateCtrl.text.trim().replaceAll(',', '')),
-          previousQuantity: double.tryParse(d.prevQtyCtrl.text.trim().replaceAll(',', '')),
-          previousAmount: double.tryParse(d.prevAmountCtrl.text.trim().replaceAll(',', '')),
-          thisPeriodQuantity: double.tryParse(d.thisPeriodQtyCtrl.text.trim().replaceAll(',', '')),
-          thisPeriodAmount: double.tryParse(d.thisPeriodAmountCtrl.text.trim().replaceAll(',', '')),
-          cumulativeQuantity: double.tryParse(d.cumulativeQtyCtrl.text.trim().replaceAll(',', '')),
-          cumulativeAmount: double.tryParse(d.cumulativeAmountCtrl.text.trim().replaceAll(',', '')),
-          remarks: d.remarksCtrl.text.trim().isNotEmpty ? d.remarksCtrl.text.trim() : null,
+          quantity: qty,
+          rate: rate,
+          amount: amt > 0 ? amt : (qty != null && rate != null ? qty * rate : rate),
           isHighlighted: d.isHighlighted,
           highlightColor: d.highlightColor,
           sortOrder: dOrder++,
@@ -615,7 +607,14 @@ class _CreateEditIpcScreenState extends State<CreateEditIpcScreen> {
             backgroundColor: Color(0xFF137333),
           ),
         );
-        Navigator.pop(context, true);
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context, true);
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const IpcListScreen()),
+          );
+        }
       }
     } catch (e) {
       debugPrint('Supabase direct IPC save failed: $e. Trying backend API...');
@@ -633,7 +632,14 @@ class _CreateEditIpcScreenState extends State<CreateEditIpcScreen> {
               backgroundColor: Color(0xFF137333),
             ),
           );
-          Navigator.pop(context, true);
+          if (Navigator.canPop(context)) {
+            Navigator.pop(context, true);
+          } else {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => const IpcListScreen()),
+            );
+          }
         }
       } catch (e2) {
         if (mounted) {
@@ -1064,6 +1070,25 @@ class _CreateEditIpcScreenState extends State<CreateEditIpcScreen> {
                               ),
                             ),
                           ),
+                          if (_deductions.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDCFCE7),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: const Color(0xFF22C55E)),
+                              ),
+                              child: Text(
+                                'Total: BHD ${_fmt.format(_deductions.fold<double>(0.0, (s, d) => s + d.amount))}',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF15803D),
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                       const Text(
@@ -1250,12 +1275,11 @@ class _CreateEditIpcScreenState extends State<CreateEditIpcScreen> {
 
           const SizedBox(height: 10),
 
-          // Description & Unit & Rate
+          // Description & Unit
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                flex: 3,
                 child: TextFormField(
                   controller: row.descriptionCtrl,
                   decoration: const InputDecoration(
@@ -1270,31 +1294,15 @@ class _CreateEditIpcScreenState extends State<CreateEditIpcScreen> {
               ),
               const SizedBox(width: 8),
               SizedBox(
-                width: 75,
+                width: 85,
                 child: TextFormField(
                   controller: row.unitCtrl,
                   decoration: const InputDecoration(
                     labelText: 'Unit',
-                    hintText: 'm, nrs, etc.',
+                    hintText: 'm, nr...',
                     isDense: true,
                     border: OutlineInputBorder(),
                   ),
-                  style: const TextStyle(fontSize: 12),
-                  onChanged: (_) => setState(() {}),
-                ),
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 95,
-                child: TextFormField(
-                  controller: row.contractRateCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Rate (BD)',
-                    hintText: '60.000',
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(fontSize: 12),
                   onChanged: (_) => setState(() {}),
                 ),
@@ -1304,117 +1312,59 @@ class _CreateEditIpcScreenState extends State<CreateEditIpcScreen> {
 
           const SizedBox(height: 10),
 
-          // Previous & This Period Fields
+          // Quantity, Rate & Amount Fields
           Row(
             children: [
               Expanded(
+                flex: 2,
                 child: TextFormField(
-                  controller: row.prevQtyCtrl,
+                  controller: row.quantityCtrl,
                   decoration: const InputDecoration(
-                    labelText: 'Prev Qty',
-                    hintText: '0.000',
+                    labelText: 'Quantity',
+                    hintText: '1.000',
                     isDense: true,
                     border: OutlineInputBorder(),
                   ),
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(fontSize: 12),
-                  onChanged: (_) => setState(() {}),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: TextFormField(
-                  controller: row.prevAmountCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Prev BD',
-                    hintText: '0.000',
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  style: const TextStyle(fontSize: 12),
-                  onChanged: (_) => setState(() {}),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextFormField(
-                  controller: row.thisPeriodQtyCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'This Qty',
-                    hintText: '58.500',
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  style: const TextStyle(fontSize: 12),
-                  onChanged: (_) => setState(() {}),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: TextFormField(
-                  controller: row.thisPeriodAmountCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'This BD',
-                    hintText: '3,510.000',
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  style: const TextStyle(fontSize: 12),
-                  onChanged: (_) => setState(() {}),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 10),
-
-          // Cumulative & Remarks
-          Row(
-            children: [
-              Expanded(
-                child: TextFormField(
-                  controller: row.cumulativeQtyCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Cumul. Qty',
-                    hintText: 'Manual entry',
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  style: const TextStyle(fontSize: 12),
-                  onChanged: (_) => setState(() {}),
-                ),
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: TextFormField(
-                  controller: row.cumulativeAmountCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Cumul. BD',
-                    hintText: 'Manual entry',
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  style: const TextStyle(fontSize: 12),
-                  onChanged: (_) => setState(() {}),
+                  onChanged: (_) {
+                    row.recalculateAmount();
+                    setState(() {});
+                  },
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 flex: 2,
                 child: TextFormField(
-                  controller: row.remarksCtrl,
+                  controller: row.rateCtrl,
                   decoration: const InputDecoration(
-                    labelText: 'Remarks / as per site',
-                    hintText: 'e.g. as per site',
+                    labelText: 'Rate (BD)',
+                    hintText: '0.000',
                     isDense: true,
                     border: OutlineInputBorder(),
                   ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   style: const TextStyle(fontSize: 12),
+                  onChanged: (_) {
+                    row.recalculateAmount();
+                    setState(() {});
+                  },
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 3,
+                child: TextFormField(
+                  controller: row.amountCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Amount (BD)',
+                    hintText: '0.000',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                   onChanged: (_) => setState(() {}),
                 ),
               ),

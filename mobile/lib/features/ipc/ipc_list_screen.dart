@@ -93,15 +93,14 @@ class _IpcListScreenState extends State<IpcListScreen> {
     );
   }
 
-  void _openCreateEdit([IpcDocument? existing]) {
-    Navigator.push<bool>(
+  Future<void> _openCreateEdit([IpcDocument? existing]) async {
+    final saved = await Navigator.push<bool>(
       context,
       MaterialPageRoute(builder: (_) => CreateEditIpcScreen(existingDocument: existing)),
-    ).then((saved) {
-      if (saved == true) {
-        _loadDocuments();
-      }
-    });
+    );
+    if (saved == true && mounted) {
+      _loadDocuments();
+    }
   }
 
   Future<void> _previewPdf(IpcDocument doc) async {

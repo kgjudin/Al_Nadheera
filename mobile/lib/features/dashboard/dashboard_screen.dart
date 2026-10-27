@@ -14,6 +14,9 @@ import '../employees/employee_list_screen.dart';
 import '../chat/chat_layout_screen.dart';
 import '../roles/role_management_screen.dart';
 import '../profile/profile_settings_screen.dart';
+import '../../models/reminder_model.dart';
+import '../../services/reminder_service.dart';
+import '../reminders/reminders_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -31,8 +34,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Map<String, dynamic>> _teamMembers = [];
   List<Site> _recentSites = [];
   List<TaskModel> _assignedTasks = [];
+  List<ReminderModel> _pendingReminders = [];
   String? _currentEmployeeId;
   Set<String> _readNotificationIds = {};
+  Set<String> _dismissedNotificationIds = {};
 
   String _userName = 'Judin KG';
   String _userRole = 'Super Admin';
@@ -53,7 +58,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
     _fetchRecentSitesAndTeam();
     _fetchAssignedTasks();
+    _fetchReminders();
     _loadReadNotifications();
+  }
+
+  Future<void> _fetchReminders() async {
+    if (!_permissionService.isSuperAdmin) {
+      if (mounted) setState(() => _pendingReminders = []);
+      return;
+    }
+    try {
+      final list = await ReminderService().getPendingReminders();
+      if (mounted) {
+        setState(() {
+          _pendingReminders = list;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching reminders in dashboard: $e');
+    }
   }
 
   Future<void> _loadUserInfo() async {
@@ -354,6 +377,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ],
                         ),
 
+                      // 4.5. REMINDERS & RENEWALS (SUPER ADMIN ONLY)
+                      if (_permissionService.isSuperAdmin) ...[
+                        const SizedBox(height: 24),
+                        _buildRemindersDashboardCard(),
+                      ],
+
                       const SizedBox(height: 28),
 
                       // 5. QUICK SHORTCUTS HEADER
@@ -377,7 +406,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                       const SizedBox(height: 14),
 
-                      // 6. QUICK SHORTCUTS 4 TILES
+                      // 6. QUICK SHORTCUTS
                       if (isWide)
                         Row(
                           children: [
@@ -386,6 +415,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             Expanded(child: _buildShortcutStaffDirectory()),
                             const SizedBox(width: 14),
                             Expanded(child: _buildShortcutTeamChat()),
+                            if (_permissionService.isSuperAdmin) ...[
+                              const SizedBox(width: 14),
+                              Expanded(child: _buildShortcutReminders()),
+                            ],
                             const SizedBox(width: 14),
                             Expanded(child: _buildShortcutAccessControl()),
                           ],
@@ -405,9 +438,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               children: [
                                 Expanded(child: _buildShortcutTeamChat()),
                                 const SizedBox(width: 12),
-                                Expanded(child: _buildShortcutAccessControl()),
+                                Expanded(
+                                  child: _permissionService.isSuperAdmin
+                                      ? _buildShortcutReminders()
+                                      : _buildShortcutAccessControl(),
+                                ),
                               ],
                             ),
+                            if (_permissionService.isSuperAdmin) ...[
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(child: _buildShortcutAccessControl()),
+                                  const SizedBox(width: 12),
+                                  const Expanded(child: SizedBox.shrink()),
+                                ],
+                              ),
+                            ],
                           ],
                         ),
 
@@ -1058,11 +1105,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final user = _supabase.auth.currentUser;
-      final key = 'read_notifs_${user?.id ?? "guest"}';
-      final list = prefs.getStringList(key) ?? [];
+      final readKey = 'read_notifs_${user?.id ?? "guest"}';
+      final dismissedKey = 'dismissed_notifs_${user?.id ?? "guest"}';
+
+      final readList = prefs.getStringList(readKey) ?? [];
+      final dismissedList = prefs.getStringList(dismissedKey) ?? [];
+
       if (mounted) {
         setState(() {
-          _readNotificationIds = list.toSet();
+          _readNotificationIds = readList.toSet();
+          _dismissedNotificationIds = dismissedList.toSet();
         });
       }
     } catch (e) {
@@ -1102,11 +1154,90 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  Future<void> _dismissNotification(String notifId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final user = _supabase.auth.currentUser;
+      final dismissedKey = 'dismissed_notifs_${user?.id ?? "guest"}';
+      final readKey = 'read_notifs_${user?.id ?? "guest"}';
+
+      _dismissedNotificationIds.add(notifId);
+      _readNotificationIds.add(notifId);
+
+      await prefs.setStringList(dismissedKey, _dismissedNotificationIds.toList());
+      await prefs.setStringList(readKey, _readNotificationIds.toList());
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      debugPrint('Error dismissing notification: $e');
+    }
+  }
+
+  Future<void> _clearAllNotifications(List<AppNotificationItem> notifs) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final user = _supabase.auth.currentUser;
+      final dismissedKey = 'dismissed_notifs_${user?.id ?? "guest"}';
+      final readKey = 'read_notifs_${user?.id ?? "guest"}';
+
+      for (final n in notifs) {
+        _dismissedNotificationIds.add(n.id);
+        _readNotificationIds.add(n.id);
+      }
+
+      await prefs.setStringList(dismissedKey, _dismissedNotificationIds.toList());
+      await prefs.setStringList(readKey, _readNotificationIds.toList());
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      debugPrint('Error clearing all notifications: $e');
+    }
+  }
+
+  Future<void> _restoreClearedNotifications() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final user = _supabase.auth.currentUser;
+      final dismissedKey = 'dismissed_notifs_${user?.id ?? "guest"}';
+
+      _dismissedNotificationIds.clear();
+      await prefs.remove(dismissedKey);
+
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      debugPrint('Error restoring cleared notifications: $e');
+    }
+  }
+
   List<AppNotificationItem> _getNotifications() {
     final List<AppNotificationItem> list = [];
 
+    // Reminders (Strictly only for Super Admin)
+    if (_permissionService.isSuperAdmin) {
+      for (final r in _pendingReminders) {
+        final id = 'reminder_${r.id}';
+        if (_dismissedNotificationIds.contains(id)) continue;
+        final audience = r.isForSelf ? 'Personal (Super Admin)' : (r.employeeName ?? 'Staff Member');
+        list.add(AppNotificationItem(
+          id: id,
+          title: '${r.category}: ${r.title}',
+          subtitle: '$audience • ${r.remainingText}',
+          timestamp: r.dueDate,
+          type: 'reminder',
+          task: null,
+          reminder: r,
+          isRead: _readNotificationIds.contains(id),
+        ));
+      }
+    }
+
     for (final task in _assignedTasks) {
       final id = 'task_${task.id}';
+      if (_dismissedNotificationIds.contains(id)) continue;
       list.add(AppNotificationItem(
         id: id,
         title: 'Task Assigned: ${task.title}',
@@ -1116,21 +1247,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
         timestamp: task.dueDate ?? task.startDate,
         type: 'task',
         task: task,
+        reminder: null,
         isRead: _readNotificationIds.contains(id),
       ));
     }
 
     if (_pendingCount > 0 && (_permissionService.isSuperAdmin || _permissionService.isAdmin)) {
       final id = 'admission_$_pendingCount';
-      list.add(AppNotificationItem(
-        id: id,
-        title: 'User Admission Requests',
-        subtitle: '$_pendingCount user admission request${_pendingCount > 1 ? "s" : ""} waiting for approval',
-        timestamp: null,
-        type: 'admission',
-        task: null,
-        isRead: _readNotificationIds.contains(id),
-      ));
+      if (!_dismissedNotificationIds.contains(id)) {
+        list.add(AppNotificationItem(
+          id: id,
+          title: 'User Admission Requests',
+          subtitle: '$_pendingCount user admission request${_pendingCount > 1 ? "s" : ""} waiting for approval',
+          timestamp: null,
+          type: 'admission',
+          task: null,
+          reminder: null,
+          isRead: _readNotificationIds.contains(id),
+        ));
+      }
     }
 
     return list;
@@ -1254,26 +1389,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                       ],
                       const Spacer(),
-                      if (unreadCount > 0)
-                        TextButton(
+                      if (notifications.isNotEmpty) ...[
+                        if (unreadCount > 0) ...[
+                          TextButton(
+                            onPressed: () async {
+                              await _markAllNotificationsAsRead(notifications);
+                              setModalState(() {});
+                            },
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                            child: const Text(
+                              'Mark all read',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF0B5ED7),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                        ],
+                        TextButton.icon(
                           onPressed: () async {
-                            await _markAllNotificationsAsRead(notifications);
-                            setModalState(() {});
+                            final confirm = await showDialog<bool>(
+                              context: context,
+                              builder: (dCtx) => AlertDialog(
+                                title: const Text('Clear All Notifications?'),
+                                content: const Text('Are you sure you want to clear all notifications from this list?'),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(dCtx, false),
+                                    child: const Text('Cancel'),
+                                  ),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFDC2626)),
+                                    onPressed: () => Navigator.pop(dCtx, true),
+                                    child: const Text('Clear All', style: TextStyle(color: Colors.white)),
+                                  ),
+                                ],
+                              ),
+                            );
+
+                            if (confirm == true) {
+                              await _clearAllNotifications(notifications);
+                              setModalState(() {});
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('All notifications cleared'),
+                                    duration: Duration(seconds: 2),
+                                    backgroundColor: Color(0xFF0F2537),
+                                  ),
+                                );
+                              }
+                            }
                           },
                           style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            foregroundColor: const Color(0xFFDC2626),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                             minimumSize: Size.zero,
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
-                          child: const Text(
-                            'Mark all as read',
+                          icon: const Icon(Icons.delete_sweep_rounded, size: 16),
+                          label: const Text(
+                            'Clear all',
                             style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF0B5ED7),
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
+                        const SizedBox(width: 4),
+                      ],
                       IconButton(
                         icon: const Icon(Icons.close_rounded, size: 20, color: Colors.grey),
                         padding: EdgeInsets.zero,
@@ -1306,9 +1496,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'You have no assigned tasks or pending alerts at this time.',
+                                _dismissedNotificationIds.isNotEmpty
+                                    ? 'You have cleared all alerts and notifications.'
+                                    : 'You have no assigned tasks or pending alerts at this time.',
+                                textAlign: TextAlign.center,
                                 style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
                               ),
+                              if (_dismissedNotificationIds.isNotEmpty) ...[
+                                const SizedBox(height: 14),
+                                OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: const Color(0xFF0F4C81),
+                                    side: const BorderSide(color: Color(0xFF0F4C81)),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                  onPressed: () async {
+                                    await _restoreClearedNotifications();
+                                    setModalState(() {});
+                                  },
+                                  icon: const Icon(Icons.restore_rounded, size: 14),
+                                  label: const Text('Restore Cleared Alerts', style: TextStyle(fontSize: 12)),
+                                ),
+                              ],
                             ],
                           ),
                         )
@@ -1325,6 +1535,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 await _markNotificationAsRead(item.id);
                                 setModalState(() {});
                               },
+                              onDismiss: () async {
+                                await _dismissNotification(item.id);
+                                setModalState(() {});
+                              },
                               onView: () async {
                                 await _markNotificationAsRead(item.id);
                                 setModalState(() {});
@@ -1336,6 +1550,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                   Navigator.push(
                                     context,
                                     MaterialPageRoute(builder: (context) => const EmployeeListScreen(initialTab: 1)),
+                                  ).then((_) => _loadData());
+                                } else if (item.type == 'reminder') {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (context) => const RemindersScreen()),
                                   ).then((_) => _loadData());
                                 }
                               },
@@ -1356,10 +1575,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     required AppNotificationItem item,
     required VoidCallback onMarkAsRead,
     required VoidCallback onView,
+    required VoidCallback onDismiss,
   }) {
     final isTask = item.type == 'task';
+    final isReminder = item.type == 'reminder';
     final task = item.task;
-    final dateFormat = DateFormat('dd MMM yyyy');
+    final reminder = item.reminder;
+    final dateFormat = DateFormat('dd MMM yyyy, hh:mm a');
 
     Color statusColor = const Color(0xFFC2410C);
     Color statusBg = const Color(0xFFFFF7ED);
@@ -1373,6 +1595,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
         statusBg = const Color(0xFFEFF6FF);
         statusColor = const Color(0xFF1D4ED8);
       }
+    } else if (reminder != null) {
+      statusBg = reminder.isOverdue
+          ? const Color(0xFFFEE2E2)
+          : (reminder.isDueToday ? const Color(0xFFFEF3C7) : const Color(0xFFEFF6FF));
+      statusColor = reminder.isOverdue
+          ? const Color(0xFFDC2626)
+          : (reminder.isDueToday ? const Color(0xFFD97706) : const Color(0xFF0284C7));
+    }
+
+    Color iconBg = const Color(0xFFF59E0B).withValues(alpha: 0.1);
+    Color iconColor = const Color(0xFFD97706);
+    IconData iconData = Icons.person_add_rounded;
+
+    if (isTask) {
+      iconBg = const Color(0xFF0B5ED7).withValues(alpha: 0.1);
+      iconColor = const Color(0xFF0B5ED7);
+      iconData = Icons.assignment_rounded;
+    } else if (isReminder && reminder != null) {
+      iconBg = reminder.categoryColor.withValues(alpha: 0.12);
+      iconColor = reminder.categoryColor;
+      iconData = reminder.categoryIcon;
     }
 
     return Container(
@@ -1401,15 +1644,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: isTask
-                      ? const Color(0xFF0B5ED7).withValues(alpha: 0.1)
-                      : const Color(0xFFF59E0B).withValues(alpha: 0.1),
+                  color: iconBg,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
-                  isTask ? Icons.assignment_rounded : Icons.person_add_rounded,
+                  iconData,
                   size: 20,
-                  color: isTask ? const Color(0xFF0B5ED7) : const Color(0xFFD97706),
+                  color: iconColor,
                 ),
               ),
               const SizedBox(width: 12),
@@ -1440,12 +1681,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                           ),
                         ],
+                        const SizedBox(width: 6),
+                        InkWell(
+                          onTap: onDismiss,
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.all(2.0),
+                            child: Icon(Icons.close_rounded, size: 16, color: Colors.grey.shade400),
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 3),
                     Row(
                       children: [
-                        Icon(Icons.business_rounded, size: 12, color: Colors.grey.shade600),
+                        Icon(
+                          isReminder ? Icons.alarm_rounded : Icons.business_rounded,
+                          size: 12,
+                          color: Colors.grey.shade600,
+                        ),
                         const SizedBox(width: 4),
                         Expanded(
                           child: Text(
@@ -1468,6 +1722,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                             child: Text(
                               task.status,
+                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor),
+                            ),
+                          ),
+                        ] else if (reminder != null) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: statusBg,
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: Text(
+                              reminder.remainingText,
                               style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor),
                             ),
                           ),
@@ -1940,6 +2207,349 @@ class _DashboardScreenState extends State<DashboardScreen> {
       onTap: () {
         Navigator.push(context, MaterialPageRoute(builder: (context) => const ChatLayoutScreen()));
       },
+    );
+  }
+
+  Widget _buildShortcutReminders() {
+    final overdueCount = _pendingReminders.where((r) => r.isOverdue).length;
+    final totalPending = _pendingReminders.length;
+    return _buildShortcutCard(
+      title: 'Reminders',
+      subtitle: totalPending > 0
+          ? (overdueCount > 0 ? '$overdueCount overdue' : '$totalPending pending')
+          : 'Visa & Renewals',
+      icon: Icons.notification_important_rounded,
+      bgColor: const Color(0xFFEFF6FF),
+      iconColor: Colors.white,
+      iconContainerColor: const Color(0xFF0F4C81),
+      arrowColor: const Color(0xFF0F4C81),
+      arrowBgColor: const Color(0xFFDBEAFE),
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const RemindersScreen()),
+        ).then((_) => _loadData());
+      },
+    );
+  }
+
+  Widget _buildRemindersDashboardCard() {
+    final overdueCount = _pendingReminders.where((r) => r.isOverdue).length;
+    final dueSoonCount = _pendingReminders.where((r) => r.isDueSoon).length;
+    final displayReminders = _pendingReminders.take(4).toList();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: overdueCount > 0 ? Colors.red.shade200 : Colors.grey.shade200,
+          width: overdueCount > 0 ? 1.5 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: overdueCount > 0
+                ? Colors.red.withValues(alpha: 0.05)
+                : Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F4C81).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.notification_important_rounded,
+                    color: Color(0xFF0F4C81),
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Text(
+                            'Reminders & Renewals',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0F2537),
+                            ),
+                          ),
+                          if (overdueCount > 0) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFDC2626),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                '$overdueCount OVERDUE',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _pendingReminders.isEmpty
+                            ? 'All visas, passports & staff alerts are up to date'
+                            : '${_pendingReminders.length} pending alert${_pendingReminders.length > 1 ? "s" : ""}${dueSoonCount > 0 ? " ($dueSoonCount expiring soon)" : ""}',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFF0F4C81)),
+                  tooltip: 'Add Reminder',
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const RemindersScreen()),
+                    ).then((_) => _loadData());
+                  },
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const RemindersScreen()),
+                    ).then((_) => _loadData());
+                  },
+                  child: const Text(
+                    'View All',
+                    style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Color(0xFF0F4C81)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const Divider(height: 1),
+
+          // Body
+          if (_pendingReminders.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFE6F4EA),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.check_circle_outline_rounded, color: Color(0xFF16A34A), size: 24),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'No Pending Reminders',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF0F2537)),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Track visa expirations, passport renewals, CPR, contracts, or personal alerts.',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                        ),
+                      ],
+                    ),
+                  ),
+                  OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF0F4C81),
+                      side: const BorderSide(color: Color(0xFF0F4C81)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const RemindersScreen()),
+                      ).then((_) => _loadData());
+                    },
+                    icon: const Icon(Icons.add, size: 14),
+                    label: const Text('Add', style: TextStyle(fontSize: 12)),
+                  ),
+                ],
+              ),
+            )
+          else
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              itemCount: displayReminders.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (ctx, index) {
+                final r = displayReminders[index];
+                final dateFormat = DateFormat('dd MMM yyyy, hh:mm a');
+                return ListTile(
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: r.categoryColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(r.categoryIcon, color: r.categoryColor, size: 20),
+                  ),
+                  title: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          r.title,
+                          style: const TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0F2537),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: r.priorityColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          r.priority.toUpperCase(),
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.bold,
+                            color: r.priorityColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Row(
+                      children: [
+                        Text(
+                          r.isForSelf ? 'Personal' : (r.employeeName ?? 'Staff'),
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            color: r.isForSelf ? const Color(0xFF0F4C81) : const Color(0xFF059669),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(Icons.access_time_rounded, size: 11, color: Colors.grey.shade500),
+                        const SizedBox(width: 3),
+                        Text(
+                          dateFormat.format(r.dueDate),
+                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: r.isOverdue
+                                ? const Color(0xFFFEE2E2)
+                                : (r.isDueToday ? const Color(0xFFFEF3C7) : const Color(0xFFEFF6FF)),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            r.remainingText,
+                            style: TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.bold,
+                              color: r.isOverdue
+                                  ? const Color(0xFFDC2626)
+                                  : (r.isDueToday ? const Color(0xFFD97706) : const Color(0xFF0284C7)),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  trailing: IconButton(
+                    icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.grey, size: 22),
+                    tooltip: 'Mark Complete',
+                    onPressed: () async {
+                      await ReminderService().toggleReminderStatus(r.id, 'Completed');
+                      _loadData();
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Completed: ${r.title}'),
+                            duration: const Duration(seconds: 2),
+                            backgroundColor: Colors.green[700],
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const RemindersScreen()),
+                    ).then((_) => _loadData());
+                  },
+                );
+              },
+            ),
+
+          if (_pendingReminders.length > 4)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              decoration: const BoxDecoration(
+                color: Color(0xFFF8FAFC),
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
+              ),
+              child: Center(
+                child: TextButton.icon(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const RemindersScreen()),
+                    ).then((_) => _loadData());
+                  },
+                  icon: const Icon(Icons.arrow_forward_rounded, size: 14, color: Color(0xFF0F4C81)),
+                  label: Text(
+                    'View all ${_pendingReminders.length} reminders',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F4C81),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -2433,8 +3043,9 @@ class AppNotificationItem {
   final String title;
   final String subtitle;
   final DateTime? timestamp;
-  final String type; // 'task' or 'admission'
+  final String type; // 'task', 'admission', or 'reminder'
   final TaskModel? task;
+  final ReminderModel? reminder;
   final bool isRead;
 
   AppNotificationItem({
@@ -2444,6 +3055,7 @@ class AppNotificationItem {
     this.timestamp,
     required this.type,
     this.task,
+    this.reminder,
     required this.isRead,
   });
 }

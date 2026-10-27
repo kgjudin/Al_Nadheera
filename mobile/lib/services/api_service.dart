@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../models/site_model.dart';
@@ -263,7 +263,6 @@ class ApiService {
   }
 
   Future<void> createTask(String siteId, Map<String, dynamic> data) async {
-    bool savedDirectly = false;
     try {
       final insertData = {
         'site_id': siteId,
@@ -276,8 +275,10 @@ class ApiService {
         'sub_modules': data['sub_modules'] ?? [],
       };
       await Supabase.instance.client.from('tasks').insert(insertData);
-      savedDirectly = true;
-    } catch (_) {}
+      return; // Direct Supabase insert succeeded, do not call backend to avoid duplicate
+    } catch (e) {
+      debugPrint('Direct Supabase task insert failed: $e. Trying backend API...');
+    }
 
     try {
       final response = await http.post(
@@ -285,28 +286,27 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
         body: json.encode(data),
       );
-      if (!savedDirectly) {
-        final res = _processResponse(response);
-        if (res != null && res['id'] != null && data.containsKey('sub_modules')) {
-          try {
-            await Supabase.instance.client
-                .from('tasks')
-                .update({'sub_modules': data['sub_modules'] ?? []})
-                .eq('id', res['id'].toString());
-          } catch (_) {}
-        }
+      final res = _processResponse(response);
+      if (res != null && res['id'] != null && data.containsKey('sub_modules')) {
+        try {
+          await Supabase.instance.client
+              .from('tasks')
+              .update({'sub_modules': data['sub_modules'] ?? []})
+              .eq('id', res['id'].toString());
+        } catch (_) {}
       }
     } catch (e) {
-      if (!savedDirectly) rethrow;
+      rethrow;
     }
   }
 
   Future<void> updateTask(String id, Map<String, dynamic> data) async {
-    bool savedDirectly = false;
     try {
       await Supabase.instance.client.from('tasks').update(data).eq('id', id);
-      savedDirectly = true;
-    } catch (_) {}
+      return;
+    } catch (e) {
+      debugPrint('Direct Supabase task update failed: $e. Trying backend API...');
+    }
 
     try {
       final response = await http.put(
@@ -314,18 +314,19 @@ class ApiService {
         headers: {'Content-Type': 'application/json'},
         body: json.encode(data),
       );
-      if (!savedDirectly) {
-        _processResponse(response);
-      }
+      _processResponse(response);
     } catch (e) {
-      if (!savedDirectly) rethrow;
+      rethrow;
     }
   }
 
   Future<void> deleteTask(String id) async {
     try {
       await Supabase.instance.client.from('tasks').delete().eq('id', id);
-    } catch (_) {}
+      return;
+    } catch (e) {
+      debugPrint('Direct Supabase task delete failed: $e. Trying backend API...');
+    }
 
     try {
       final response = await http.delete(Uri.parse('$baseUrl/sites/tasks/$id'));

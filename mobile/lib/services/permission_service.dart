@@ -26,10 +26,12 @@ class PermissionService extends ChangeNotifier {
   bool get isAdmin => _isAdmin || _isSuperAdmin;
   bool get isManager => _isManager || _isAdmin || _isSuperAdmin;
   bool get isLoading => _isLoading;
+  bool get canAccessReminders => _isSuperAdmin;
   Map<String, ModulePermission> get permissions => _permissions;
 
   bool canView(String moduleKey) {
     if (_isSuperAdmin) return true;
+    if (moduleKey == AppModules.reminders) return false;
     final p = _permissions[moduleKey];
     if (p != null) return p.canView;
     if (_isAdmin) return true;
@@ -38,6 +40,7 @@ class PermissionService extends ChangeNotifier {
 
   bool canCreate(String moduleKey) {
     if (_isSuperAdmin) return true;
+    if (moduleKey == AppModules.reminders) return false;
     final p = _permissions[moduleKey];
     if (p != null) return p.canCreate;
     if (_isAdmin) return true;
@@ -46,6 +49,7 @@ class PermissionService extends ChangeNotifier {
 
   bool canEdit(String moduleKey) {
     if (_isSuperAdmin) return true;
+    if (moduleKey == AppModules.reminders) return false;
     final p = _permissions[moduleKey];
     if (p != null) return p.canEdit;
     if (_isAdmin) return true;
@@ -54,6 +58,7 @@ class PermissionService extends ChangeNotifier {
 
   bool canDelete(String moduleKey) {
     if (_isSuperAdmin) return true;
+    if (moduleKey == AppModules.reminders) return false;
     final p = _permissions[moduleKey];
     if (p != null) return p.canDelete;
     if (_isAdmin) return moduleKey != AppModules.roleManagement;

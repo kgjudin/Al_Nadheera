@@ -299,29 +299,13 @@ class IpcPdfGenerator {
     pw.Font regularFont,
     pw.Font boldFont,
   ) {
-    const table1Widths = {
-      0: pw.FixedColumnWidth(36), // Item No.
-      1: pw.FlexColumnWidth(1.0), // Item Description
-      2: pw.FixedColumnWidth(34), // Unit
-      3: pw.FixedColumnWidth(55), // CONTRACT
-      4: pw.FixedColumnWidth(116), // PREVIOUS (52 + 64)
-      5: pw.FixedColumnWidth(116), // THIS PERIOD (52 + 64)
-      6: pw.FixedColumnWidth(116), // CUMULATIVE (52 + 64)
-      7: pw.FixedColumnWidth(64), // as per site
-    };
-
     const colWidths = {
-      0: pw.FixedColumnWidth(36), // Item No.
+      0: pw.FixedColumnWidth(40), // Item No.
       1: pw.FlexColumnWidth(1.0), // Item Description
-      2: pw.FixedColumnWidth(34), // Unit
-      3: pw.FixedColumnWidth(55), // CONTRACT Rate
-      4: pw.FixedColumnWidth(52), // PREVIOUS Quantity
-      5: pw.FixedColumnWidth(64), // PREVIOUS Amount BD
-      6: pw.FixedColumnWidth(52), // THIS PERIOD Quantity
-      7: pw.FixedColumnWidth(64), // THIS PERIOD Amount BD
-      8: pw.FixedColumnWidth(52), // CUMULATIVE Quantity
-      9: pw.FixedColumnWidth(64), // CUMULATIVE Amount BD
-      10: pw.FixedColumnWidth(64), // as per site
+      2: pw.FixedColumnWidth(40), // Unit
+      3: pw.FixedColumnWidth(65), // Quantity
+      4: pw.FixedColumnWidth(65), // Rate (BD)
+      5: pw.FixedColumnWidth(80), // Amount (BD)
     };
 
     pw.Widget buildTopHeader() {
@@ -339,18 +323,21 @@ class IpcPdfGenerator {
               style: pw.TextStyle(font: boldFont, fontSize: 10, letterSpacing: 0.3),
               textAlign: pw.TextAlign.center,
             ),
-            if (document.mainContractor.trim().isNotEmpty) ...[
+            pw.SizedBox(height: 3),
+            pw.Text(
+              'MATERIAL DEDUCTION SHEET',
+              style: pw.TextStyle(font: boldFont, fontSize: 9.5, letterSpacing: 0.4),
+              textAlign: pw.TextAlign.center,
+            ),
+            if (document.mainContractor.trim().isNotEmpty || document.subContractor.trim().isNotEmpty) ...[
               pw.SizedBox(height: 3),
               pw.Text(
-                'MAIN CONTRACTOR : ${document.mainContractor.trim().toUpperCase()}',
-                style: pw.TextStyle(font: boldFont, fontSize: 8.5),
-                textAlign: pw.TextAlign.center,
-              ),
-            ],
-            if (document.subContractor.trim().isNotEmpty) ...[
-              pw.SizedBox(height: 3),
-              pw.Text(
-                'SUB CONTRACTOR : ${document.subContractor.trim().toUpperCase()}',
+                [
+                  if (document.mainContractor.trim().isNotEmpty)
+                    'MAIN CONTRACTOR : ${document.mainContractor.trim().toUpperCase()}',
+                  if (document.subContractor.trim().isNotEmpty)
+                    'SUB CONTRACTOR : ${document.subContractor.trim().toUpperCase()}',
+                ].join('   |   '),
                 style: pw.TextStyle(font: boldFont, fontSize: 8.5),
                 textAlign: pw.TextAlign.center,
               ),
@@ -370,93 +357,49 @@ class IpcPdfGenerator {
 
     pw.Widget buildTableHeader() {
       const headerBg = PdfColor.fromInt(0xFFFDE8D7); // Peach/tan tint matching sample image
-      return pw.Column(
+      return pw.Table(
+        border: const pw.TableBorder(
+          top: pw.BorderSide(color: PdfColors.black, width: 0.8),
+          left: pw.BorderSide(color: PdfColors.black, width: 0.8),
+          right: pw.BorderSide(color: PdfColors.black, width: 0.8),
+          bottom: pw.BorderSide(color: PdfColors.black, width: 0.8),
+          verticalInside: pw.BorderSide(color: PdfColors.black, width: 0.8),
+        ),
+        columnWidths: colWidths,
         children: [
-          // Table 1: Top Header Row (8 columns)
-          pw.Table(
-            border: const pw.TableBorder(
-              top: pw.BorderSide(color: PdfColors.black, width: 0.8),
-              left: pw.BorderSide(color: PdfColors.black, width: 0.8),
-              right: pw.BorderSide(color: PdfColors.black, width: 0.8),
-              bottom: pw.BorderSide(color: PdfColors.black, width: 0.8),
-              verticalInside: pw.BorderSide(color: PdfColors.black, width: 0.8),
-            ),
-            columnWidths: table1Widths,
+          pw.TableRow(
+            decoration: const pw.BoxDecoration(color: headerBg),
             children: [
-              pw.TableRow(
-                decoration: const pw.BoxDecoration(color: headerBg),
-                children: [
-                  pw.Container(
-                    height: 18,
-                    alignment: pw.Alignment.center,
-                    child: pw.Text('Item No.', style: pw.TextStyle(font: boldFont, fontSize: 7.5)),
-                  ),
-                  pw.Container(
-                    height: 18,
-                    alignment: pw.Alignment.center,
-                    child: pw.Text('Item Description', style: pw.TextStyle(font: boldFont, fontSize: 8)),
-                  ),
-                  pw.Container(
-                    height: 18,
-                    alignment: pw.Alignment.center,
-                    child: pw.Text('Unit', style: pw.TextStyle(font: boldFont, fontSize: 8)),
-                  ),
-                  pw.Container(
-                    height: 18,
-                    alignment: pw.Alignment.center,
-                    child: pw.Text('CONTRACT', style: pw.TextStyle(font: boldFont, fontSize: 7)),
-                  ),
-                  pw.Container(
-                    height: 18,
-                    alignment: pw.Alignment.center,
-                    child: pw.Text('PREVIOUS', style: pw.TextStyle(font: boldFont, fontSize: 7)),
-                  ),
-                  pw.Container(
-                    height: 18,
-                    alignment: pw.Alignment.center,
-                    child: pw.Text('THIS PERIOD', style: pw.TextStyle(font: boldFont, fontSize: 7)),
-                  ),
-                  pw.Container(
-                    height: 18,
-                    alignment: pw.Alignment.center,
-                    child: pw.Text('CUMULATIVE', style: pw.TextStyle(font: boldFont, fontSize: 7)),
-                  ),
-                  pw.Container(
-                    height: 18,
-                    alignment: pw.Alignment.center,
-                    child: pw.Text('as per site', style: pw.TextStyle(font: boldFont, fontSize: 7.5)),
-                  ),
-                ],
+              pw.Container(
+                height: 20,
+                alignment: pw.Alignment.center,
+                child: pw.Text('Item No.', style: pw.TextStyle(font: boldFont, fontSize: 8)),
               ),
-            ],
-          ),
-
-          // Table 2: Subheader Row (11 columns)
-          pw.Table(
-            border: const pw.TableBorder(
-              top: pw.BorderSide.none,
-              left: pw.BorderSide(color: PdfColors.black, width: 0.8),
-              right: pw.BorderSide(color: PdfColors.black, width: 0.8),
-              bottom: pw.BorderSide(color: PdfColors.black, width: 0.8),
-              verticalInside: pw.BorderSide(color: PdfColors.black, width: 0.8),
-            ),
-            columnWidths: colWidths,
-            children: [
-              pw.TableRow(
-                decoration: const pw.BoxDecoration(color: headerBg),
-                children: [
-                  pw.Container(height: 14, alignment: pw.Alignment.center, child: pw.Text('', style: pw.TextStyle(font: boldFont, fontSize: 7))),
-                  pw.Container(height: 14, alignment: pw.Alignment.center, child: pw.Text('', style: pw.TextStyle(font: boldFont, fontSize: 7))),
-                  pw.Container(height: 14, alignment: pw.Alignment.center, child: pw.Text('', style: pw.TextStyle(font: boldFont, fontSize: 7))),
-                  pw.Container(height: 14, alignment: pw.Alignment.center, child: pw.Text('Rate', style: pw.TextStyle(font: boldFont, fontSize: 7))),
-                  pw.Container(height: 14, alignment: pw.Alignment.center, child: pw.Text('Quantity', style: pw.TextStyle(font: boldFont, fontSize: 6.5))),
-                  pw.Container(height: 14, alignment: pw.Alignment.center, child: pw.Text('Amount BD', style: pw.TextStyle(font: boldFont, fontSize: 6.5))),
-                  pw.Container(height: 14, alignment: pw.Alignment.center, child: pw.Text('Quantity', style: pw.TextStyle(font: boldFont, fontSize: 6.5))),
-                  pw.Container(height: 14, alignment: pw.Alignment.center, child: pw.Text('Amount BD', style: pw.TextStyle(font: boldFont, fontSize: 6.5))),
-                  pw.Container(height: 14, alignment: pw.Alignment.center, child: pw.Text('Quantity', style: pw.TextStyle(font: boldFont, fontSize: 6.5))),
-                  pw.Container(height: 14, alignment: pw.Alignment.center, child: pw.Text('Amount BD', style: pw.TextStyle(font: boldFont, fontSize: 6.5))),
-                  pw.Container(height: 14, alignment: pw.Alignment.center, child: pw.Text('', style: pw.TextStyle(font: boldFont, fontSize: 7))),
-                ],
+              pw.Container(
+                height: 20,
+                alignment: pw.Alignment.centerLeft,
+                padding: const pw.EdgeInsets.symmetric(horizontal: 6),
+                child: pw.Text('Item Description', style: pw.TextStyle(font: boldFont, fontSize: 8.5)),
+              ),
+              pw.Container(
+                height: 20,
+                alignment: pw.Alignment.center,
+                child: pw.Text('Unit', style: pw.TextStyle(font: boldFont, fontSize: 8.5)),
+              ),
+              pw.Container(
+                height: 20,
+                alignment: pw.Alignment.center,
+                child: pw.Text('Quantity', style: pw.TextStyle(font: boldFont, fontSize: 8.5)),
+              ),
+              pw.Container(
+                height: 20,
+                alignment: pw.Alignment.center,
+                child: pw.Text('Rate (BD)', style: pw.TextStyle(font: boldFont, fontSize: 8.5)),
+              ),
+              pw.Container(
+                height: 20,
+                alignment: pw.Alignment.center,
+                child: pw.Text('Amount (BD)', style: pw.TextStyle(font: boldFont, fontSize: 8.5)),
               ),
             ],
           ),
@@ -464,10 +407,12 @@ class IpcPdfGenerator {
       );
     }
 
+    final totalDeductions = document.totalDeductions;
+
     pdf.addPage(
       pw.MultiPage(
-        pageFormat: PdfPageFormat.a4.landscape,
-        margin: const pw.EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         header: (context) => pw.Column(
           children: [
             buildTopHeader(),
@@ -493,62 +438,73 @@ class IpcPdfGenerator {
                       : null,
                   children: [
                     pw.Container(
-                      alignment: pw.Alignment.centerLeft,
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 2.5),
-                      child: pw.Text(r.itemNumber ?? '', style: pw.TextStyle(font: regularFont, fontSize: 7.5)),
+                      alignment: pw.Alignment.center,
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 5),
+                      child: pw.Text(r.itemNumber ?? '', style: pw.TextStyle(font: regularFont, fontSize: 8.5)),
                     ),
                     pw.Container(
                       alignment: pw.Alignment.centerLeft,
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 2.5),
-                      child: pw.Text(r.description, style: pw.TextStyle(font: regularFont, fontSize: 7.5)),
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+                      child: pw.Text(r.description, style: pw.TextStyle(font: regularFont, fontSize: 8.5)),
                     ),
                     pw.Container(
                       alignment: pw.Alignment.center,
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 2, vertical: 2.5),
-                      child: pw.Text(r.unit ?? '', style: pw.TextStyle(font: regularFont, fontSize: 7.5)),
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 5),
+                      child: pw.Text(r.unit ?? '', style: pw.TextStyle(font: regularFont, fontSize: 8.5)),
                     ),
                     pw.Container(
                       alignment: pw.Alignment.centerRight,
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 2.5),
-                      child: pw.Text(_formatDec(r.contractRate), style: pw.TextStyle(font: regularFont, fontSize: 7.5)),
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                      child: pw.Text(
+                        r.effectiveQuantity > 0 ? _formatQty(r.effectiveQuantity) : '-',
+                        style: pw.TextStyle(font: boldFont, fontSize: 8.5),
+                      ),
                     ),
                     pw.Container(
                       alignment: pw.Alignment.centerRight,
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 2.5),
-                      child: pw.Text(_formatDec(r.previousQuantity), style: pw.TextStyle(font: regularFont, fontSize: 7.5)),
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                      child: pw.Text(
+                        r.effectiveRate > 0 ? _formatDec(r.effectiveRate) : '-',
+                        style: pw.TextStyle(font: regularFont, fontSize: 8.5),
+                      ),
                     ),
                     pw.Container(
                       alignment: pw.Alignment.centerRight,
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 2.5),
-                      child: pw.Text(_formatDec(r.previousAmount), style: pw.TextStyle(font: regularFont, fontSize: 7.5)),
-                    ),
-                    pw.Container(
-                      alignment: pw.Alignment.centerRight,
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 2.5),
-                      child: pw.Text(_formatDec(r.thisPeriodQuantity), style: pw.TextStyle(font: regularFont, fontSize: 7.5)),
-                    ),
-                    pw.Container(
-                      alignment: pw.Alignment.centerRight,
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 2.5),
-                      child: pw.Text(_formatDec(r.thisPeriodAmount), style: pw.TextStyle(font: regularFont, fontSize: 7.5)),
-                    ),
-                    pw.Container(
-                      alignment: pw.Alignment.centerRight,
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 2.5),
-                      child: pw.Text(_formatDec(r.cumulativeQuantity), style: pw.TextStyle(font: regularFont, fontSize: 7.5)),
-                    ),
-                    pw.Container(
-                      alignment: pw.Alignment.centerRight,
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 2.5),
-                      child: pw.Text(_formatDec(r.cumulativeAmount), style: pw.TextStyle(font: regularFont, fontSize: 7.5)),
-                    ),
-                    pw.Container(
-                      alignment: pw.Alignment.centerLeft,
-                      padding: const pw.EdgeInsets.symmetric(horizontal: 3, vertical: 2.5),
-                      child: pw.Text(r.remarks ?? '', style: pw.TextStyle(font: regularFont, fontSize: 7.5)),
+                      padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 5),
+                      child: pw.Text(
+                        _formatNumber(r.effectiveAmount),
+                        style: pw.TextStyle(font: boldFont, fontSize: 8.5),
+                      ),
                     ),
                   ],
                 ),
+
+              // Total Summary Row
+              pw.TableRow(
+                decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFFF1F5F9)),
+                children: [
+                  _buildEmptyCell(),
+                  pw.Container(
+                    alignment: pw.Alignment.centerLeft,
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+                    child: pw.Text(
+                      'TOTAL DEDUCTION FOR MATERIAL (BD)',
+                      style: pw.TextStyle(font: boldFont, fontSize: 9),
+                    ),
+                  ),
+                  _buildEmptyCell(),
+                  _buildEmptyCell(),
+                  _buildEmptyCell(),
+                  pw.Container(
+                    alignment: pw.Alignment.centerRight,
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 6),
+                    child: pw.Text(
+                      _formatNumber(totalDeductions),
+                      style: pw.TextStyle(font: boldFont, fontSize: 9.5),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ],

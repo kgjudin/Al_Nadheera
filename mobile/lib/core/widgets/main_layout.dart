@@ -21,6 +21,7 @@ import '../../features/invoices/invoices_screen.dart';
 import '../../features/customers/customers_screen.dart';
 import '../../features/document_templates/document_template_settings_screen.dart';
 import '../../features/ipc/ipc_list_screen.dart';
+import '../../features/reminders/reminders_screen.dart';
 
 class _MainTabItem {
   final String key;
@@ -200,6 +201,13 @@ class _MainLayoutState extends State<MainLayout> {
                 moduleTitle: 'Personal Notes',
                 onBackToDashboard: () => _navigateToModule(AppModules.dashboard),
               );
+      case AppModules.reminders:
+        return _permissionService.canView(AppModules.reminders)
+            ? const RemindersScreen(showAppBar: false)
+            : _AccessRestrictedView(
+                moduleTitle: 'Reminders & Renewals',
+                onBackToDashboard: () => _navigateToModule(AppModules.dashboard),
+              );
       case AppModules.customers:
         return _permissionService.canView(AppModules.customers)
             ? const CustomersScreen()
@@ -333,6 +341,31 @@ class _MainLayoutState extends State<MainLayout> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(builder: (context) => const RoleManagementScreen()),
+                        );
+                      },
+                    ),
+                    const Divider(height: 1),
+                  ],
+
+                  // Reminders & Renewals (Super Admin Only)
+                  if (_permissionService.canAccessReminders) ...[
+                    ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F4C81).withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.notification_important_rounded, color: Color(0xFF0F4C81)),
+                      ),
+                      title: const Text('Reminders & Renewals', style: TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: const Text('Visa, passport, CPR & personal alerts for Super Admin'),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const RemindersScreen()),
                         );
                       },
                     ),

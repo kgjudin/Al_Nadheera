@@ -23,6 +23,7 @@ app.use('/api/sites', require('./routes/sites.routes'));
 app.use('/api/employees', require('./routes/employees.routes'));
 app.use('/api/products', require('./routes/products.routes'));
 app.use('/api/ipc', require('./routes/ipc.routes'));
+app.use('/api/reminders', require('./routes/reminders.routes'));
 app.use('/api/roles', require('./routes/roles.routes'));
 app.use('/api/auth', require('./routes/auth.routes'));
 

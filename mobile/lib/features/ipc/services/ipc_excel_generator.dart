@@ -148,42 +148,37 @@ class IpcExcelGenerator {
       final xlsio.Worksheet dSheet = workbook.worksheets.addWithName('Material Deduction');
 
       // Top Header
-      dSheet.getRangeByName('A1:K1').merge();
+      dSheet.getRangeByName('A1:F1').merge();
       final t1 = dSheet.getRangeByName('A1');
       t1.setText(projectName);
       t1.cellStyle.bold = true;
       t1.cellStyle.fontSize = 11;
       t1.cellStyle.hAlign = xlsio.HAlignType.center;
 
-      dSheet.getRangeByName('A2:K2').merge();
+      dSheet.getRangeByName('A2:F2').merge();
       final t2 = dSheet.getRangeByName('A2');
       t2.setText('MAIN CONTRACTOR : ${document.mainContractor.toUpperCase()}   |   SUB CONTRACTOR : ${document.subContractor.toUpperCase()}');
       t2.cellStyle.bold = true;
       t2.cellStyle.fontSize = 10;
       t2.cellStyle.hAlign = xlsio.HAlignType.center;
 
-      dSheet.getRangeByName('A3:K3').merge();
+      dSheet.getRangeByName('A3:F3').merge();
       final t3 = dSheet.getRangeByName('A3');
       t3.setText('IPA # ${document.documentNumber} Until ${document.date.toIso8601String().split("T")[0]}');
       t3.cellStyle.bold = true;
       t3.cellStyle.fontSize = 9.5;
       t3.cellStyle.hAlign = xlsio.HAlignType.right;
 
-      dSheet.getRangeByName('A1:K3').cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
+      dSheet.getRangeByName('A1:F3').cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
 
       // Column Headers
       final dHeaders = [
         'Item No.',
         'Item Description',
         'Unit',
-        'Rate',
-        'Prev Qty',
-        'Prev Amount BD',
-        'This Qty',
-        'This Amount BD',
-        'Cumul Qty',
-        'Cumul Amount BD',
-        'as per site'
+        'Quantity',
+        'Rate (BD)',
+        'Amount (BD)',
       ];
       for (int c = 0; c < dHeaders.length; c++) {
         final cell = dSheet.getRangeByIndex(4, c + 1);
@@ -195,15 +190,17 @@ class IpcExcelGenerator {
         cell.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
         if (c == 0 || c == 2) {
           cell.cellStyle.hAlign = xlsio.HAlignType.center;
-        } else if (c >= 3 && c <= 9) {
+        } else if (c >= 3) {
           cell.cellStyle.hAlign = xlsio.HAlignType.right;
+        } else {
+          cell.cellStyle.hAlign = xlsio.HAlignType.left;
         }
       }
 
       int dRow = 5;
       final startRow = dRow;
       for (final it in document.deductions) {
-        final rowRange = dSheet.getRangeByIndex(dRow, 1, dRow, 11);
+        final rowRange = dSheet.getRangeByIndex(dRow, 1, dRow, 6);
         rowRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
         rowRange.cellStyle.vAlign = xlsio.VAlignType.center;
 
@@ -211,98 +208,73 @@ class IpcExcelGenerator {
           rowRange.cellStyle.backColor = it.highlightColorHex;
         }
 
-        dSheet.getRangeByIndex(dRow, 1).setText(it.itemNumber ?? '');
-        dSheet.getRangeByIndex(dRow, 2).setText(it.description);
-        dSheet.getRangeByIndex(dRow, 3).setText(it.unit ?? '');
+        final itemNoCell = dSheet.getRangeByIndex(dRow, 1);
+        itemNoCell.setText(it.itemNumber ?? '');
+        itemNoCell.cellStyle.hAlign = xlsio.HAlignType.center;
 
-        if (it.contractRate != null) {
+        final descCell = dSheet.getRangeByIndex(dRow, 2);
+        descCell.setText(it.description);
+        descCell.cellStyle.hAlign = xlsio.HAlignType.left;
+
+        final unitCell = dSheet.getRangeByIndex(dRow, 3);
+        unitCell.setText(it.unit ?? '');
+        unitCell.cellStyle.hAlign = xlsio.HAlignType.center;
+
+        if (it.effectiveQuantity > 0) {
           final c = dSheet.getRangeByIndex(dRow, 4);
-          c.setNumber(it.contractRate!);
+          c.setNumber(it.effectiveQuantity);
           c.numberFormat = '#,##0.000';
+          c.cellStyle.hAlign = xlsio.HAlignType.right;
         }
 
-        if (it.previousQuantity != null) {
+        if (it.effectiveRate > 0) {
           final c = dSheet.getRangeByIndex(dRow, 5);
-          c.setNumber(it.previousQuantity!);
+          c.setNumber(it.effectiveRate);
           c.numberFormat = '#,##0.000';
+          c.cellStyle.hAlign = xlsio.HAlignType.right;
         }
 
-        if (it.previousAmount != null) {
-          final c = dSheet.getRangeByIndex(dRow, 6);
-          c.setNumber(it.previousAmount!);
-          c.numberFormat = '#,##0.000';
+        final amtCell = dSheet.getRangeByIndex(dRow, 6);
+        if (it.effectiveQuantity > 0 && it.effectiveRate > 0) {
+          amtCell.setFormula('=D$dRow*E$dRow');
+        } else {
+          amtCell.setNumber(it.effectiveAmount);
         }
-
-        if (it.thisPeriodQuantity != null) {
-          final c = dSheet.getRangeByIndex(dRow, 7);
-          c.setNumber(it.thisPeriodQuantity!);
-          c.numberFormat = '#,##0.000';
-        }
-
-        if (it.thisPeriodAmount != null) {
-          final c = dSheet.getRangeByIndex(dRow, 8);
-          c.setNumber(it.thisPeriodAmount!);
-          c.numberFormat = '#,##0.000';
-        }
-
-        if (it.cumulativeQuantity != null) {
-          final c = dSheet.getRangeByIndex(dRow, 9);
-          c.setNumber(it.cumulativeQuantity!);
-          c.numberFormat = '#,##0.000';
-        }
-
-        if (it.cumulativeAmount != null) {
-          final c = dSheet.getRangeByIndex(dRow, 10);
-          c.setNumber(it.cumulativeAmount!);
-          c.numberFormat = '#,##0.000';
-        }
-
-        dSheet.getRangeByIndex(dRow, 11).setText(it.remarks ?? '');
+        amtCell.numberFormat = '#,##0.000';
+        amtCell.cellStyle.bold = true;
+        amtCell.cellStyle.hAlign = xlsio.HAlignType.right;
 
         dRow++;
       }
 
       // Total Row
       final totalRow = dRow;
-      final totalRange = dSheet.getRangeByIndex(totalRow, 1, totalRow, 11);
+      final totalRange = dSheet.getRangeByIndex(totalRow, 1, totalRow, 6);
       totalRange.cellStyle.borders.all.lineStyle = xlsio.LineStyle.thin;
+      totalRange.cellStyle.borders.bottom.lineStyle = xlsio.LineStyle.double;
       totalRange.cellStyle.backColor = '#D9D9D9';
       totalRange.cellStyle.vAlign = xlsio.VAlignType.center;
 
-      dSheet.getRangeByIndex(totalRow, 1, totalRow, 4).merge();
+      dSheet.getRangeByIndex(totalRow, 1, totalRow, 5).merge();
       final tLabel = dSheet.getRangeByIndex(totalRow, 1);
       tLabel.setText('TOTAL DEDUCTION FOR MATERIAL (TO SUMMARY)');
       tLabel.cellStyle.bold = true;
       tLabel.cellStyle.fontSize = 9.5;
 
       if (document.deductions.isNotEmpty) {
-        final prevTotalCell = dSheet.getRangeByIndex(totalRow, 6);
-        prevTotalCell.setFormula('=SUM(F$startRow:F${totalRow - 1})');
-        prevTotalCell.numberFormat = '#,##0.000';
-        prevTotalCell.cellStyle.bold = true;
-
-        final thisTotalCell = dSheet.getRangeByIndex(totalRow, 8);
-        thisTotalCell.setFormula('=SUM(H$startRow:H${totalRow - 1})');
-        thisTotalCell.numberFormat = '#,##0.000';
-        thisTotalCell.cellStyle.bold = true;
-
-        final cumTotalCell = dSheet.getRangeByIndex(totalRow, 10);
-        cumTotalCell.setFormula('=SUM(J$startRow:J${totalRow - 1})');
-        cumTotalCell.numberFormat = '#,##0.000';
-        cumTotalCell.cellStyle.bold = true;
+        final totalCell = dSheet.getRangeByIndex(totalRow, 6);
+        totalCell.setFormula('=SUM(F$startRow:F${totalRow - 1})');
+        totalCell.numberFormat = '#,##0.000';
+        totalCell.cellStyle.bold = true;
+        totalCell.cellStyle.hAlign = xlsio.HAlignType.right;
       }
 
-      dSheet.getRangeByName('A1').columnWidth = 8.0;
-      dSheet.getRangeByName('B1').columnWidth = 32.0;
-      dSheet.getRangeByName('C1').columnWidth = 8.0;
-      dSheet.getRangeByName('D1').columnWidth = 12.0;
-      dSheet.getRangeByName('E1').columnWidth = 12.0;
-      dSheet.getRangeByName('F1').columnWidth = 15.0;
-      dSheet.getRangeByName('G1').columnWidth = 12.0;
-      dSheet.getRangeByName('H1').columnWidth = 15.0;
-      dSheet.getRangeByName('I1').columnWidth = 12.0;
-      dSheet.getRangeByName('J1').columnWidth = 15.0;
-      dSheet.getRangeByName('K1').columnWidth = 14.0;
+      dSheet.getRangeByName('A1').columnWidth = 10.0;
+      dSheet.getRangeByName('B1').columnWidth = 40.0;
+      dSheet.getRangeByName('C1').columnWidth = 10.0;
+      dSheet.getRangeByName('D1').columnWidth = 14.0;
+      dSheet.getRangeByName('E1').columnWidth = 14.0;
+      dSheet.getRangeByName('F1').columnWidth = 18.0;
     }
 
     final List<int> bytes = workbook.saveAsStream();

@@ -136,9 +136,17 @@ class IpcItem {
 
 class IpcDeductionItem {
   final String? id;
-  String? itemNumber; // e.g. '21', '22', '27'
+  String? itemNumber; // e.g. '1', '2', '21'
   String description; // e.g. '1000mm Dia GRP Pipes', 'Machinery deduction'
   String? unit; // e.g. 'm', 'nrs', 'KG', 'roll', 'pcs', 'Sum'
+  double? quantity;
+  double? rate;
+  double? amount;
+  bool isHighlighted;
+  String? highlightColor;
+  int sortOrder;
+
+  // Backwards compatibility fields
   double? contractRate;
   double? previousQuantity;
   double? previousAmount;
@@ -146,16 +154,16 @@ class IpcDeductionItem {
   double? thisPeriodAmount;
   double? cumulativeQuantity;
   double? cumulativeAmount;
-  String? remarks; // e.g. 'as per site'
-  bool isHighlighted;
-  String? highlightColor;
-  int sortOrder;
+  String? remarks;
 
   IpcDeductionItem({
     this.id,
     this.itemNumber,
     required this.description,
     this.unit,
+    this.quantity,
+    this.rate,
+    this.amount,
     this.contractRate,
     this.previousQuantity,
     this.previousAmount,
@@ -167,7 +175,39 @@ class IpcDeductionItem {
     this.isHighlighted = false,
     this.highlightColor,
     this.sortOrder = 0,
-  });
+  }) {
+    rate ??= contractRate;
+    contractRate ??= rate;
+
+    quantity ??= thisPeriodQuantity ?? cumulativeQuantity ?? previousQuantity;
+
+    if (amount == null) {
+      if (thisPeriodAmount != null && thisPeriodAmount! > 0) {
+        amount = thisPeriodAmount;
+      } else if (cumulativeAmount != null && cumulativeAmount! > 0) {
+        amount = cumulativeAmount;
+      } else if (previousAmount != null && previousAmount! > 0) {
+        amount = previousAmount;
+      } else if (quantity != null && rate != null) {
+        amount = quantity! * rate!;
+      } else if (rate != null) {
+        amount = rate;
+      }
+    }
+  }
+
+  double get effectiveAmount {
+    if (amount != null && amount! > 0) return amount!;
+    if (thisPeriodAmount != null && thisPeriodAmount! > 0) return thisPeriodAmount!;
+    if (cumulativeAmount != null && cumulativeAmount! > 0) return cumulativeAmount!;
+    final q = effectiveQuantity;
+    final r = effectiveRate;
+    if (q > 0 && r > 0) return q * r;
+    return r;
+  }
+
+  double get effectiveRate => rate ?? contractRate ?? 0.0;
+  double get effectiveQuantity => quantity ?? thisPeriodQuantity ?? cumulativeQuantity ?? 0.0;
 
   String get highlightColorHex {
     if (highlightColor != null && highlightColor!.isNotEmpty) {
@@ -177,42 +217,42 @@ class IpcDeductionItem {
   }
 
   void autoCompute() {
-    final rate = contractRate;
-    if (rate != null && rate > 0) {
-      if (previousQuantity != null && previousQuantity! > 0 && previousAmount == null) {
-        previousAmount = previousQuantity! * rate;
+    final r = effectiveRate;
+    if (r > 0) {
+      if (effectiveQuantity > 0 && (amount == null || amount == 0)) {
+        amount = effectiveQuantity * r;
+        thisPeriodAmount = amount;
+        cumulativeAmount = amount;
       }
-      if (thisPeriodQuantity != null && thisPeriodQuantity! > 0 && thisPeriodAmount == null) {
-        thisPeriodAmount = thisPeriodQuantity! * rate;
-      }
-    }
-    // Cumulative Qty
-    final prevQ = previousQuantity ?? 0.0;
-    final thisQ = thisPeriodQuantity ?? 0.0;
-    if (cumulativeQuantity == null && (prevQ > 0 || thisQ > 0)) {
-      cumulativeQuantity = prevQ + thisQ;
-    }
-    // Cumulative Amount
-    final prevA = previousAmount ?? 0.0;
-    final thisA = thisPeriodAmount ?? 0.0;
-    if (cumulativeAmount == null && (prevA > 0 || thisA > 0)) {
-      cumulativeAmount = prevA + thisA;
     }
   }
 
   factory IpcDeductionItem.fromJson(Map<String, dynamic> json) {
+    final r = (json['rate'] as num?)?.toDouble() ??
+        (json['contract_rate'] as num?)?.toDouble();
+    final q = (json['quantity'] as num?)?.toDouble() ??
+        (json['this_period_quantity'] as num?)?.toDouble() ??
+        (json['cumulative_quantity'] as num?)?.toDouble();
+    final a = (json['amount'] as num?)?.toDouble() ??
+        (json['this_period_amount'] as num?)?.toDouble() ??
+        (json['cumulative_amount'] as num?)?.toDouble() ??
+        (q != null && r != null ? q * r : r);
+
     return IpcDeductionItem(
       id: json['id'] as String?,
       itemNumber: json['item_number'] as String?,
       description: json['description'] as String? ?? '',
       unit: json['unit'] as String?,
-      contractRate: (json['contract_rate'] as num?)?.toDouble(),
+      quantity: q,
+      rate: r,
+      amount: a,
+      contractRate: r,
       previousQuantity: (json['previous_quantity'] as num?)?.toDouble(),
       previousAmount: (json['previous_amount'] as num?)?.toDouble(),
-      thisPeriodQuantity: (json['this_period_quantity'] as num?)?.toDouble(),
-      thisPeriodAmount: (json['this_period_amount'] as num?)?.toDouble(),
-      cumulativeQuantity: (json['cumulative_quantity'] as num?)?.toDouble(),
-      cumulativeAmount: (json['cumulative_amount'] as num?)?.toDouble(),
+      thisPeriodQuantity: (json['this_period_quantity'] as num?)?.toDouble() ?? q,
+      thisPeriodAmount: (json['this_period_amount'] as num?)?.toDouble() ?? a,
+      cumulativeQuantity: (json['cumulative_quantity'] as num?)?.toDouble() ?? q,
+      cumulativeAmount: (json['cumulative_amount'] as num?)?.toDouble() ?? a,
       remarks: json['remarks'] as String?,
       isHighlighted: json['is_highlighted'] == true ||
           json['is_highlighted']?.toString().toLowerCase() == 'true',
@@ -222,18 +262,25 @@ class IpcDeductionItem {
   }
 
   Map<String, dynamic> toJson() {
+    final r = effectiveRate;
+    final q = effectiveQuantity;
+    final a = effectiveAmount;
+
     return {
       if (id != null) 'id': id,
       'item_number': itemNumber,
       'description': description,
       'unit': unit,
-      'contract_rate': contractRate,
+      'quantity': q > 0 ? q : null,
+      'rate': r > 0 ? r : null,
+      'amount': a,
+      'contract_rate': r > 0 ? r : null,
       'previous_quantity': previousQuantity,
       'previous_amount': previousAmount,
-      'this_period_quantity': thisPeriodQuantity,
-      'this_period_amount': thisPeriodAmount,
-      'cumulative_quantity': cumulativeQuantity,
-      'cumulative_amount': cumulativeAmount,
+      'this_period_quantity': thisPeriodQuantity ?? (q > 0 ? q : null),
+      'this_period_amount': thisPeriodAmount ?? a,
+      'cumulative_quantity': cumulativeQuantity ?? (q > 0 ? q : null),
+      'cumulative_amount': cumulativeAmount ?? a,
       'remarks': remarks,
       'is_highlighted': isHighlighted,
       if (highlightColor != null) 'highlight_color': highlightColor,
@@ -246,6 +293,9 @@ class IpcDeductionItem {
     String? itemNumber,
     String? description,
     String? unit,
+    double? quantity,
+    double? rate,
+    double? amount,
     double? contractRate,
     double? previousQuantity,
     double? previousAmount,
@@ -263,6 +313,9 @@ class IpcDeductionItem {
       itemNumber: itemNumber ?? this.itemNumber,
       description: description ?? this.description,
       unit: unit ?? this.unit,
+      quantity: quantity ?? this.quantity,
+      rate: rate ?? this.rate,
+      amount: amount ?? this.amount,
       contractRate: contractRate ?? this.contractRate,
       previousQuantity: previousQuantity ?? this.previousQuantity,
       previousAmount: previousAmount ?? this.previousAmount,
@@ -317,6 +370,14 @@ class IpcDocument {
 
   bool get hasDeductions => deductions.isNotEmpty;
 
+  double get totalDeductions {
+    double total = 0.0;
+    for (final d in deductions) {
+      total += d.effectiveAmount;
+    }
+    return total;
+  }
+
   double get totalDeductionPrevious {
     double total = 0.0;
     for (final d in deductions) {
@@ -328,7 +389,7 @@ class IpcDocument {
   double get totalDeductionThisPeriod {
     double total = 0.0;
     for (final d in deductions) {
-      total += (d.thisPeriodAmount ?? 0.0);
+      total += (d.thisPeriodAmount ?? (d.amount != null && d.previousAmount == null ? d.effectiveAmount : 0.0));
     }
     return total;
   }
@@ -336,7 +397,7 @@ class IpcDocument {
   double get totalDeductionCumulative {
     double total = 0.0;
     for (final d in deductions) {
-      total += (d.cumulativeAmount ?? 0.0);
+      total += (d.cumulativeAmount ?? d.effectiveAmount);
     }
     return total;
   }

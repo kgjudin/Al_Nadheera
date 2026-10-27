@@ -527,3 +527,30 @@ CREATE POLICY "Allow anon full access to ipc_items" ON public.ipc_items FOR ALL 
 
 
 
+
+-- 23. Reminders Table
+CREATE TABLE IF NOT EXISTS public.reminders (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title TEXT NOT NULL,
+    description TEXT,
+    due_date TIMESTAMPTZ NOT NULL,
+    category TEXT NOT NULL DEFAULT 'General', -- 'Visa', 'Passport', 'CPR', 'Contract', 'Payment', 'Meeting', 'Task', 'General'
+    priority TEXT NOT NULL DEFAULT 'Medium', -- 'Low', 'Medium', 'High', 'Urgent'
+    status TEXT NOT NULL DEFAULT 'Pending', -- 'Pending', 'Completed', 'Cancelled'
+    employee_id UUID REFERENCES public.employees(id) ON DELETE SET NULL,
+    employee_name TEXT,
+    is_for_self BOOLEAN DEFAULT FALSE,
+    target_role TEXT DEFAULT 'Super Admin',
+    created_by UUID,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.reminders ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow authenticated full access to reminders" ON public.reminders FOR ALL TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Allow anon full access to reminders" ON public.reminders FOR ALL TO anon USING (true) WITH CHECK (true);
+
+CREATE INDEX IF NOT EXISTS idx_reminders_due_date ON public.reminders(due_date);
+CREATE INDEX IF NOT EXISTS idx_reminders_employee_id ON public.reminders(employee_id);
+CREATE INDEX IF NOT EXISTS idx_reminders_status ON public.reminders(status);
+CREATE INDEX IF NOT EXISTS idx_reminders_category ON public.reminders(category);
