@@ -198,6 +198,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
             if (!isSuperAdmin) {
               if (status == 'pending') {
+                PermissionService.instance.resetToGuest();
                 await Supabase.instance.client.auth.signOut();
                 if (mounted) {
                   _showAdmissionPendingModal(
@@ -207,6 +208,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 }
                 return;
               } else if (status == 'declined' || status == 'rejected') {
+                PermissionService.instance.resetToGuest();
                 await Supabase.instance.client.auth.signOut();
                 if (mounted) {
                   _showAdmissionPendingModal(
@@ -217,6 +219,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 }
                 return;
               } else if (status == 'inactive') {
+                PermissionService.instance.resetToGuest();
                 await Supabase.instance.client.auth.signOut();
                 if (mounted) {
                   setState(() {
@@ -293,7 +296,7 @@ class _LoginScreenState extends State<LoginScreen> {
           data: {
             'name': name,
             'phone': phone,
-            'role': 'Staff',
+            'role': 'Employee',
             'status': 'Pending',
             'employee_id': employeeId,
           },
@@ -308,7 +311,8 @@ class _LoginScreenState extends State<LoginScreen> {
               'name': name,
               'email': email,
               'phone': phone.isNotEmpty ? phone : null,
-              'role': 'Staff',
+              'role': 'Employee',
+              'role_id': '7be40544-c6a7-4f2b-80e5-a7d9e663dcde',
               'status': 'Pending',
             });
           } catch (_) {}
@@ -325,8 +329,9 @@ class _LoginScreenState extends State<LoginScreen> {
         }
       }
 
-      // CRITICAL: Immediately sign out so user CANNOT enter the app!
+      // CRITICAL: Immediately sign out and reset permissions so user CANNOT enter the app!
       try {
+        PermissionService.instance.resetToGuest();
         await Supabase.instance.client.auth.signOut();
       } catch (_) {}
 

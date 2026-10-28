@@ -63,6 +63,7 @@ class _AlNadheeraAppState extends State<AlNadheeraApp> with WidgetsBindingObserv
           PresenceService.instance.initialize();
           LocationService.instance.initialize();
         } else if (data.event == AuthChangeEvent.signedOut) {
+          PermissionService.instance.resetToGuest();
           LocationService.instance.onAppClosed();
           LocationService.instance.dispose();
           PresenceService.instance.dispose();
@@ -142,6 +143,7 @@ class _InitialAuthCheckState extends State<InitialAuthCheck> {
               final isSuperAdmin = role == 'super admin';
 
               if (!isSuperAdmin && status != 'active') {
+                PermissionService.instance.resetToGuest();
                 await Supabase.instance.client.auth.signOut();
                 if (mounted) {
                   String message = 'Your account is pending Super Admin approval. You can access it once admitted.';

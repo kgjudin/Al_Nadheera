@@ -442,6 +442,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   Future<void> _signOut() async {
     try {
       PresenceService.instance.dispose();
+      PermissionService.instance.resetToGuest();
       await _supabase.auth.signOut();
     } catch (e) {
       debugPrint('Sign out error: $e');

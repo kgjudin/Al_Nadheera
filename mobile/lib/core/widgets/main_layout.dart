@@ -530,6 +530,7 @@ class _MainLayoutState extends State<MainLayout> {
                       Navigator.pop(sheetContext);
                       try {
                         PresenceService.instance.dispose();
+                        PermissionService.instance.resetToGuest();
                         await Supabase.instance.client.auth.signOut();
                       } catch (e) {
                         debugPrint('Error during sign out: $e');
@@ -559,6 +560,15 @@ class _MainLayoutState extends State<MainLayout> {
     return AnimatedBuilder(
       animation: _permissionService,
       builder: (context, _) {
+        if (_permissionService.isLoading && _permissionService.permissions.isEmpty) {
+          return const Scaffold(
+            backgroundColor: Color(0xFFF7F9FD),
+            body: Center(
+              child: CircularProgressIndicator(color: Color(0xFF0B5ED7)),
+            ),
+          );
+        }
+
         final List<_MainTabItem> tabItems = [
           const _MainTabItem(
             key: AppModules.dashboard,

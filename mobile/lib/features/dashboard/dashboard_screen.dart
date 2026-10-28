@@ -39,8 +39,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Set<String> _readNotificationIds = {};
   Set<String> _dismissedNotificationIds = {};
 
-  String _userName = 'Judin KG';
-  String _userRole = 'Super Admin';
+  String _userName = 'Team Member';
+  String _userRole = PermissionService.instance.currentRole;
   String? _userAvatarUrl;
   int _pendingCount = 0;
 

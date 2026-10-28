@@ -51,7 +51,7 @@ exports.register = async (req, res) => {
       user_metadata: {
         name: name.trim(),
         phone: phone ? phone.trim() : null,
-        role: 'Staff',
+        role: 'Employee',
         status: 'Pending',
         employee_id: empId,
       },
@@ -72,7 +72,8 @@ exports.register = async (req, res) => {
         name: name.trim(),
         email: trimmedEmail,
         phone: phone ? phone.trim() : null,
-        role: 'Staff',
+        role: 'Employee',
+        role_id: '7be40544-c6a7-4f2b-80e5-a7d9e663dcde',
         status: 'Pending',
       })
       .select()

@@ -69,11 +69,18 @@ class PermissionService extends ChangeNotifier {
   Future<void> loadUserPermissions() async {
     final user = _supabase.auth.currentUser;
     if (user == null) {
-      _resetToGuest();
+      resetToGuest();
       return;
     }
 
     _isLoading = true;
+    // Clear out any previous session's elevated privileges immediately to prevent state leakage
+    _isSuperAdmin = false;
+    _isAdmin = false;
+    _isManager = false;
+    _currentRole = 'Employee';
+    _currentRoleId = null;
+    _permissions = {};
     notifyListeners();
 
     try {
@@ -115,6 +122,11 @@ class PermissionService extends ChangeNotifier {
         roleName = user.userMetadata?['role']?.toString() ?? 'Employee';
       }
 
+      // Normalize role naming: 'Staff' maps to the system 'Employee' role
+      if (roleName.trim().toLowerCase() == 'staff') {
+        roleName = 'Employee';
+      }
+
       // Check for project owner accounts (Judin / Super Admin)
       final userEmailLower = user.email?.trim().toLowerCase() ?? '';
       final isOwner = userEmailLower == 'judin@gmail.com' ||
@@ -130,6 +142,17 @@ class PermissionService extends ChangeNotifier {
             'role': 'Super Admin',
             'role_id': '21bb0756-c858-41c5-946e-abb69ed749e0',
           }).eq('id', employeeRes['id']).then((_) {}).catchError((_) {});
+        }
+      } else if (roleName.trim().toLowerCase() == 'employee') {
+        // Ensure default role_id is always resolved to the system Employee role
+        if (roleId == null || roleId.isEmpty) {
+          roleId = '7be40544-c6a7-4f2b-80e5-a7d9e663dcde';
+          if (employeeRes != null && employeeRes['id'] != null) {
+            _supabase.from('employees').update({
+              'role': 'Employee',
+              'role_id': '7be40544-c6a7-4f2b-80e5-a7d9e663dcde',
+            }).eq('id', employeeRes['id']).then((_) {}).catchError((_) {});
+          }
         }
       }
 
@@ -191,15 +214,22 @@ class PermissionService extends ChangeNotifier {
         if (match != null) {
           baseMap[mod] = ModulePermission.fromJson(match);
         } else {
-          final isRestricted = mod.contains('budget') || mod == AppModules.roleManagement;
+          final isRestricted = mod.contains('budget') ||
+              mod == AppModules.roleManagement ||
+              mod == AppModules.invoices ||
+              mod == AppModules.employees ||
+              mod == AppModules.reminders ||
+              mod == AppModules.documentTemplates ||
+              mod == AppModules.ipc;
+
           final isStaffDefaultAllowed = mod == AppModules.sites ||
               mod == AppModules.chat ||
-              mod == AppModules.products ||
-              mod == AppModules.personal ||
               mod == AppModules.siteSummary ||
               mod == AppModules.siteTasks ||
               mod == AppModules.siteLabour ||
               mod == AppModules.siteMaterials ||
+              mod == AppModules.siteSubcontractors ||
+              mod == AppModules.siteAdditionalExpenses ||
               mod == AppModules.siteChat;
 
           if (_isAdmin) {
@@ -224,14 +254,14 @@ class PermissionService extends ChangeNotifier {
               moduleKey: mod,
               canView: isStaffDefaultAllowed,
               canCreate: mod == AppModules.chat ||
-                  mod == AppModules.personal ||
                   mod == AppModules.siteTasks ||
                   mod == AppModules.siteLabour ||
                   mod == AppModules.siteMaterials ||
+                  mod == AppModules.siteAdditionalExpenses ||
                   mod == AppModules.siteChat,
               canEdit: mod == AppModules.chat ||
-                  mod == AppModules.personal ||
                   mod == AppModules.siteTasks ||
+                  mod == AppModules.siteLabour ||
                   mod == AppModules.siteChat,
               canDelete: false,
             );
@@ -259,13 +289,48 @@ class PermissionService extends ChangeNotifier {
       _permissions = baseMap;
     } catch (e) {
       debugPrint('Error loading user permissions: $e');
+      if (_permissions.isEmpty && !_isSuperAdmin) {
+        _permissions = _buildDefaultStaffPermissions();
+      }
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
-  void _resetToGuest() {
+  /// Safe fallback default permissions for standard employees
+  Map<String, ModulePermission> _buildDefaultStaffPermissions() {
+    final Map<String, ModulePermission> map = {};
+    for (final mod in AppModules.allModules) {
+      final isAllowed = mod == AppModules.sites ||
+          mod == AppModules.chat ||
+          mod == AppModules.siteSummary ||
+          mod == AppModules.siteTasks ||
+          mod == AppModules.siteLabour ||
+          mod == AppModules.siteMaterials ||
+          mod == AppModules.siteSubcontractors ||
+          mod == AppModules.siteAdditionalExpenses ||
+          mod == AppModules.siteChat;
+      map[mod] = ModulePermission(
+        moduleKey: mod,
+        canView: isAllowed,
+        canCreate: mod == AppModules.chat ||
+            mod == AppModules.siteTasks ||
+            mod == AppModules.siteLabour ||
+            mod == AppModules.siteMaterials ||
+            mod == AppModules.siteAdditionalExpenses ||
+            mod == AppModules.siteChat,
+        canEdit: mod == AppModules.chat ||
+            mod == AppModules.siteTasks ||
+            mod == AppModules.siteLabour ||
+            mod == AppModules.siteChat,
+        canDelete: false,
+      );
+    }
+    return map;
+  }
+
+  void resetToGuest() {
     _currentRole = 'Guest';
     _currentRoleId = null;
     _isSuperAdmin = false;

@@ -42,6 +42,7 @@ exports.createEmployee = async (req, res) => {
     
     // Resolve role and role_id if one is provided
     let finalRole = role || 'Employee';
+    if (finalRole.trim().toLowerCase() === 'staff') finalRole = 'Employee';
     let finalRoleId = role_id;
     if (finalRoleId && !role) {
       const { data: rData } = await supabase.from('roles').select('name').eq('id', finalRoleId).maybeSingle();
@@ -49,6 +50,9 @@ exports.createEmployee = async (req, res) => {
     } else if (finalRole && !finalRoleId) {
       const { data: rData } = await supabase.from('roles').select('id').ilike('name', finalRole).maybeSingle();
       if (rData) finalRoleId = rData.id;
+    }
+    if (!finalRoleId && finalRole.trim().toLowerCase() === 'employee') {
+      finalRoleId = '7be40544-c6a7-4f2b-80e5-a7d9e663dcde';
     }
 
     // Auto-generate employee ID if not provided (e.g. ANCC-EMP-001)
@@ -127,12 +131,18 @@ exports.updateEmployee = async (req, res) => {
     const { id } = req.params;
     const updates = { ...req.body };
     
+    if (updates.role && updates.role.trim().toLowerCase() === 'staff') {
+      updates.role = 'Employee';
+    }
     if (updates.role_id && !updates.role) {
       const { data: rData } = await supabase.from('roles').select('name').eq('id', updates.role_id).maybeSingle();
       if (rData) updates.role = rData.name;
     } else if (updates.role && !updates.role_id) {
       const { data: rData } = await supabase.from('roles').select('id').ilike('name', updates.role).maybeSingle();
       if (rData) updates.role_id = rData.id;
+    }
+    if (!updates.role_id && updates.role && updates.role.trim().toLowerCase() === 'employee') {
+      updates.role_id = '7be40544-c6a7-4f2b-80e5-a7d9e663dcde';
     }
 
     // Ensure employee has an employee_id in standard format
@@ -222,12 +232,18 @@ exports.approveEmployee = async (req, res) => {
     if (assigned_site_id !== undefined) updates.assigned_site_id = assigned_site_id;
 
     // Resolve role name if role_id is provided without role
+    if (updates.role && updates.role.trim().toLowerCase() === 'staff') {
+      updates.role = 'Employee';
+    }
     if (updates.role_id && !updates.role) {
       const { data: rData } = await supabase.from('roles').select('name').eq('id', updates.role_id).maybeSingle();
       if (rData) updates.role = rData.name;
     } else if (updates.role && !updates.role_id) {
       const { data: rData } = await supabase.from('roles').select('id').ilike('name', updates.role).maybeSingle();
       if (rData) updates.role_id = rData.id;
+    }
+    if (!updates.role_id && updates.role && updates.role.trim().toLowerCase() === 'employee') {
+      updates.role_id = '7be40544-c6a7-4f2b-80e5-a7d9e663dcde';
     }
 
     // Ensure employee has an employee_id in standard format

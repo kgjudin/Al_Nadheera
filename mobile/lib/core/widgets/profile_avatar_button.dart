@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../features/auth/login_screen.dart';
 import '../../features/chat/services/presence_service.dart';
 import '../../features/profile/profile_settings_screen.dart';
+import '../../services/permission_service.dart';
 
 class ProfileAvatarButton extends StatefulWidget {
   const ProfileAvatarButton({super.key});
@@ -45,6 +46,7 @@ class _ProfileAvatarButtonState extends State<ProfileAvatarButton> {
   Future<void> _signOut(BuildContext context) async {
     try {
       PresenceService.instance.dispose();
+      PermissionService.instance.resetToGuest();
       await _supabase.auth.signOut();
     } catch (e) {
       debugPrint('Sign out error: $e');
