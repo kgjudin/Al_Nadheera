@@ -29,6 +29,16 @@ class ApiService {
         throw Exception(body['message'] ?? 'API request failed');
       }
     } else {
+      try {
+        final body = json.decode(response.body);
+        if (body is Map && body['message'] != null) {
+          throw Exception(body['message']);
+        }
+      } catch (e) {
+        if (e is! FormatException && !e.toString().contains('Failed with status code')) {
+          rethrow;
+        }
+      }
       throw Exception('Failed with status code: ${response.statusCode}');
     }
   }
@@ -463,7 +473,7 @@ class ApiService {
     return Map<String, dynamic>.from(data);
   }
 
-  Future<Map<String, dynamic>> register(String name, String email, String phone, String password) async {
+  Future<Map<String, dynamic>> register(String name, String email, String phone, String password, {String? employeeId}) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/register'),
       headers: {'Content-Type': 'application/json'},
@@ -472,6 +482,7 @@ class ApiService {
         'email': email,
         'phone': phone,
         'password': password,
+        if (employeeId != null && employeeId.isNotEmpty) 'employee_id': employeeId,
       }),
     );
     final data = _processResponse(response);

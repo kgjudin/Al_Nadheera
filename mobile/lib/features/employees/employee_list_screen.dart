@@ -6,6 +6,7 @@ import '../../core/constants/app_modules.dart';
 import '../../models/employee_model.dart';
 import '../../models/role_model.dart';
 import '../../models/site_model.dart';
+import '../../services/employee_id_service.dart';
 import 'add_edit_employee_screen.dart';
 import '../roles/employee_custom_permissions_screen.dart';
 import '../../core/widgets/profile_avatar_button.dart';
@@ -447,9 +448,34 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> with SingleTick
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        emp.name,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Color(0xFF0A2540)),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              emp.name,
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17, color: Color(0xFF0A2540)),
+                            ),
+                          ),
+                          if (emp.employeeId != null && emp.employeeId!.isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFE0F2FE),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(color: const Color(0xFFBAE6FD)),
+                              ),
+                              child: Text(
+                                emp.employeeId!,
+                                style: const TextStyle(
+                                  color: Color(0xFF0369A1),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 4),
                       Row(
@@ -577,7 +603,32 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> with SingleTick
                 )
               : null,
         ),
-        title: Text(emp.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(emp.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ),
+            if (emp.employeeId != null && emp.employeeId!.isNotEmpty) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFFCBD5E1)),
+                ),
+                child: Text(
+                  emp.employeeId!,
+                  style: const TextStyle(
+                    color: Color(0xFF0F172A),
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1000,6 +1051,12 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> with SingleTick
 
                                   final messenger = ScaffoldMessenger.of(context);
                                   try {
+                                    // Ensure employee has a valid ANCC-EMP-(number) ID
+                                    String? empId = emp.employeeId;
+                                    if (empId == null || empId.trim().isEmpty) {
+                                      empId = await EmployeeIdService.fetchNextEmployeeId();
+                                    }
+
                                     // Call backend API
                                     try {
                                       await _apiService.approveEmployee(
@@ -1015,6 +1072,7 @@ class _EmployeeListScreenState extends State<EmployeeListScreen> with SingleTick
                                         'role': selectedRoleName,
                                         if (selectedRoleId != null) 'role_id': selectedRoleId,
                                         'assigned_site_id': selectedSiteId,
+                                        'employee_id': empId,
                                       }).eq('id', emp.id);
                                     }
 

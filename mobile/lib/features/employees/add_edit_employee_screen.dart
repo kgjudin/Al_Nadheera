@@ -8,6 +8,7 @@ import '../../services/camera/app_camera_service.dart';
 import '../../models/employee_model.dart';
 import '../../models/role_model.dart';
 import '../../models/site_model.dart';
+import '../../services/employee_id_service.dart';
 import '../roles/employee_custom_permissions_screen.dart';
 import 'package:intl/intl.dart';
 
@@ -49,7 +50,17 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.employee?.name ?? '');
-    _empIdController = TextEditingController(text: widget.employee?.employeeId ?? '');
+    final initialEmpId = widget.employee?.employeeId ?? EmployeeIdService.generateInitialEmployeeId();
+    _empIdController = TextEditingController(text: initialEmpId);
+    if (widget.employee == null) {
+      EmployeeIdService.fetchNextEmployeeId().then((nextId) {
+        if (mounted && (_empIdController.text.isEmpty || _empIdController.text == initialEmpId)) {
+          setState(() {
+            _empIdController.text = nextId;
+          });
+        }
+      });
+    }
     _phoneController = TextEditingController(text: widget.employee?.phone ?? '');
     _emailController = TextEditingController(text: widget.employee?.email ?? '');
     _profileImageUrl = widget.employee?.profileImageUrl;
@@ -274,6 +285,10 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
     setState(() => _isLoading = true);
 
     try {
+      if (_empIdController.text.trim().isEmpty) {
+        _empIdController.text = await EmployeeIdService.fetchNextEmployeeId();
+      }
+
       final data = {
         'name': _nameController.text.trim(),
         'employee_id': _empIdController.text.trim(),
@@ -288,7 +303,32 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
       };
 
       if (widget.employee == null) {
-        await _apiService.createEmployee(data);
+        try {
+          await _apiService.createEmployee(data);
+        } catch (apiErr) {
+          final errStr = apiErr.toString();
+          // If trigger on auth.users already created the employee record, update it directly
+          if (errStr.contains('duplicate key') || errStr.contains('employees_pkey') || errStr.contains('500')) {
+            final email = data['email']?.toString();
+            if (email != null && email.isNotEmpty) {
+              final updateRes = await Supabase.instance.client
+                  .from('employees')
+                  .update(data)
+                  .ilike('email', email)
+                  .select();
+              if (updateRes.isNotEmpty) {
+                if (mounted) {
+                  Navigator.pop(context, true);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Employee created successfully')),
+                  );
+                }
+                return;
+              }
+            }
+          }
+          rethrow;
+        }
       } else {
         await _apiService.updateEmployee(widget.employee!.id, data);
       }
@@ -566,7 +606,24 @@ class _AddEditEmployeeScreenState extends State<AddEditEmployeeScreen> {
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _empIdController,
-                    decoration: const InputDecoration(labelText: 'Employee ID', border: OutlineInputBorder()),
+                    decoration: InputDecoration(
+                      labelText: 'Employee ID *',
+                      hintText: 'e.g. ANCC-EMP-001',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.refresh_rounded),
+                        tooltip: 'Auto-generate next Employee ID',
+                        onPressed: () async {
+                          final nextId = await EmployeeIdService.fetchNextEmployeeId();
+                          if (mounted) {
+                            setState(() {
+                              _empIdController.text = nextId;
+                            });
+                          }
+                        },
+                      ),
+                    ),
+                    validator: (v) => v == null || v.trim().isEmpty ? 'Employee ID is required' : null,
                   ),
                   const SizedBox(height: 16),
                   TextFormField(

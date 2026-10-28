@@ -487,14 +487,16 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                     _invoice.salutation ?? 'Respected Sir,',
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.black),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _invoice.introText ??
-                        'We with kind esteem would like to inform you that we confirm our committed intention to engage in your Project and fulfill all related works accordingly.',
-                    style: const TextStyle(fontSize: 11.5, color: Colors.black87, height: 1.35),
-                  ),
-
-                  const SizedBox(height: 14),
+                  if (_invoice.introText != null && _invoice.introText!.trim().isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      _invoice.introText!,
+                      style: const TextStyle(fontSize: 11.5, color: Colors.black87, height: 1.35),
+                    ),
+                    const SizedBox(height: 14),
+                  ] else ...[
+                    const SizedBox(height: 8),
+                  ],
 
                   // 6. Centered Project Sub-Header
                   Center(

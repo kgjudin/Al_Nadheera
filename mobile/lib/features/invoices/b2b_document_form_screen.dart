@@ -23,6 +23,9 @@ class _B2bDocumentFormScreenState extends State<B2bDocumentFormScreen> {
   final NumberFormat _currFormat = NumberFormat('#,##0.000', 'en_US');
 
   // ==================== SOURCE CARD CONTROLLERS & STATE ====================
+  static const String _defaultQuotationIntroText =
+      'We with kind esteem would like to inform you that we confirm our committed intention to engage in your Project to provide the Project Management and Construction Management Services for the above mention project. Our organization is pleased to submit our best Competitive offer in conformity to the Specification and Drawing for an amount of BOQ Details Below.';
+
   String _documentType = 'Quotation';
   final List<String> _documentTypeOptions = [
     'Quotation',
@@ -143,10 +146,23 @@ class _B2bDocumentFormScreenState extends State<B2bDocumentFormScreen> {
     _salutationCtrl = TextEditingController(
       text: edit?.salutation?.isNotEmpty == true ? edit!.salutation! : 'Respected Sir,',
     );
+    final isQuotation = _documentType.trim().toLowerCase() == 'quotation';
+    String initialIntro = '';
+    if (edit != null) {
+      if (edit.introText != null && edit.introText!.isNotEmpty) {
+        if (!isQuotation && edit.introText!.trim() == _defaultQuotationIntroText.trim()) {
+          initialIntro = '';
+        } else {
+          initialIntro = edit.introText!;
+        }
+      } else if (isQuotation) {
+        initialIntro = _defaultQuotationIntroText;
+      }
+    } else {
+      initialIntro = isQuotation ? _defaultQuotationIntroText : '';
+    }
     _introTextCtrl = TextEditingController(
-      text: edit?.introText?.isNotEmpty == true
-          ? edit!.introText!
-          : 'We with kind esteem would like to inform you that we confirm our committed intention to engage in your Project to provide the Project Management and Construction Management Services for the above mention project. Our organization is pleased to submit our best Competitive offer in conformity to the Specification and Drawing for an amount of BOQ Details Below.',
+      text: initialIntro,
     );
     _tableTitleCtrl = TextEditingController(
       text: edit?.tableHeaderTitle?.isNotEmpty == true ? edit!.tableHeaderTitle! : '',
@@ -566,7 +582,7 @@ class _B2bDocumentFormScreenState extends State<B2bDocumentFormScreen> {
     );
   }
 
-  // ==================== CARD 1: SOURCE (MATCHING IMAGE 2 EXACTLY) ====================
+  // ==================== CARD 1: DOCUMENT INFO & DATE (TOP SECTION) ====================
   Widget _buildSourceCard(DateFormat df) {
     return Container(
       decoration: BoxDecoration(
@@ -597,217 +613,112 @@ class _B2bDocumentFormScreenState extends State<B2bDocumentFormScreen> {
               borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
             ),
             child: const Text(
-              'Source',
+              'Document Information',
               style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF0F172A)),
             ),
           ),
 
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Row 1: DOCUMENT TYPE, START DATE, END DATE
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Document Type
-                    Expanded(
-                      flex: 4,
-                      child: _buildFormFieldWrapper(
-                        label: 'DOCUMENT TYPE',
-                        child: _buildDropdownContainer(
-                          value: _documentType,
-                          items: _documentTypeOptions,
-                          onChanged: (v) {
-                            if (v != null) {
-                              final oldPrefix = InvoiceNumberService.getPrefixForType(_documentType);
-                              final newPrefix = InvoiceNumberService.getPrefixForType(v);
-                              setState(() {
-                                _documentType = v;
-                                if (widget.invoiceToEdit == null) {
-                                  if (_quotationNumCtrl.text.isEmpty || _quotationNumCtrl.text.startsWith(oldPrefix)) {
-                                    _quotationNumCtrl.text = _quotationNumCtrl.text.replaceFirst(oldPrefix, newPrefix);
-                                    if (!_quotationNumCtrl.text.startsWith(newPrefix)) {
-                                      _quotationNumCtrl.text = InvoiceNumberService.generateInitialB2bNumber(v, _startDate);
-                                    }
-                                  }
-                                }
-                              });
-                              if (widget.invoiceToEdit == null) {
-                                InvoiceNumberService.fetchNextB2bDocumentNumber(v, _startDate).then((newNumber) {
-                                  if (mounted && widget.invoiceToEdit == null) {
-                                    setState(() {
-                                      _quotationNumCtrl.text = newNumber;
-                                    });
-                                  }
-                                });
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isNarrow = constraints.maxWidth < 380;
+                final docNameField = _buildFormFieldWrapper(
+                  label: 'DOCUMENT NAME',
+                  child: _buildDropdownContainer(
+                    value: _documentType,
+                    items: _documentTypeOptions,
+                    onChanged: (v) {
+                      if (v != null) {
+                        final oldPrefix = InvoiceNumberService.getPrefixForType(_documentType);
+                        final newPrefix = InvoiceNumberService.getPrefixForType(v);
+                        setState(() {
+                          _documentType = v;
+                          if (widget.invoiceToEdit == null) {
+                            if (_quotationNumCtrl.text.isEmpty || _quotationNumCtrl.text.startsWith(oldPrefix)) {
+                              _quotationNumCtrl.text = _quotationNumCtrl.text.replaceFirst(oldPrefix, newPrefix);
+                              if (!_quotationNumCtrl.text.startsWith(newPrefix)) {
+                                _quotationNumCtrl.text = InvoiceNumberService.generateInitialB2bNumber(v, _startDate);
                               }
                             }
-                          },
-                        ),
+                          }
+
+                          // Prefill introductory letter ONLY for Quotation; make blank for other document names
+                          final isNowQuotation = v.trim().toLowerCase() == 'quotation';
+                          if (isNowQuotation) {
+                            if (_introTextCtrl.text.trim().isEmpty) {
+                              _introTextCtrl.text = _defaultQuotationIntroText;
+                            }
+                          } else {
+                            if (_introTextCtrl.text.trim() == _defaultQuotationIntroText.trim()) {
+                              _introTextCtrl.text = '';
+                            }
+                          }
+                        });
+                        if (widget.invoiceToEdit == null) {
+                          InvoiceNumberService.fetchNextB2bDocumentNumber(v, _startDate).then((newNumber) {
+                            if (mounted && widget.invoiceToEdit == null) {
+                              setState(() {
+                                _quotationNumCtrl.text = newNumber;
+                              });
+                            }
+                          });
+                        }
+                      }
+                    },
+                  ),
+                );
+
+                final startDateField = _buildFormFieldWrapper(
+                  label: 'START DATE',
+                  child: InkWell(
+                    onTap: () async {
+                      final picked = await showDatePicker(
+                        context: context,
+                        initialDate: _startDate,
+                        firstDate: DateTime(2020),
+                        lastDate: DateTime(2035),
+                      );
+                      if (picked != null) setState(() => _startDate = picked);
+                    },
+                    child: Container(
+                      height: 44,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xFFCBD5E1)),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(df.format(_startDate), style: const TextStyle(fontSize: 13.5)),
+                          const Icon(Icons.calendar_month_outlined, size: 18, color: Color(0xFF64748B)),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 12),
+                  ),
+                );
 
-                    // Start Date
-                    Expanded(
-                      flex: 4,
-                      child: _buildFormFieldWrapper(
-                        label: 'START DATE',
-                        child: InkWell(
-                          onTap: () async {
-                            final picked = await showDatePicker(
-                              context: context,
-                              initialDate: _startDate,
-                              firstDate: DateTime(2020),
-                              lastDate: DateTime(2035),
-                            );
-                            if (picked != null) setState(() => _startDate = picked);
-                          },
-                          child: Container(
-                            height: 44,
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: const Color(0xFFCBD5E1)),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(df.format(_startDate), style: const TextStyle(fontSize: 13.5)),
-                                const Icon(Icons.calendar_month_outlined, size: 18, color: Color(0xFF64748B)),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
+                if (isNarrow) {
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      docNameField,
+                      const SizedBox(height: 14),
+                      startDateField,
+                    ],
+                  );
+                }
 
-                    // End Date
-                    Expanded(
-                      flex: 4,
-                      child: _buildFormFieldWrapper(
-                        label: 'END DATE',
-                        child: InkWell(
-                          onTap: () async {
-                            final picked = await showDatePicker(
-                              context: context,
-                              initialDate: _endDate ?? _startDate.add(const Duration(days: 30)),
-                              firstDate: DateTime(2020),
-                              lastDate: DateTime(2035),
-                            );
-                            if (picked != null) setState(() => _endDate = picked);
-                          },
-                          child: Container(
-                            height: 44,
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: const Color(0xFFCBD5E1)),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  _endDate != null ? df.format(_endDate!) : 'mm/dd/yyyy',
-                                  style: TextStyle(
-                                    fontSize: 13.5,
-                                    color: _endDate != null ? Colors.black87 : const Color(0xFF94A3B8),
-                                  ),
-                                ),
-                                const Icon(Icons.calendar_month_outlined, size: 18, color: Color(0xFF64748B)),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 14),
-
-                // Row 2: PAGE FORMAT, PAGE MODE, FONT TYPE, STATUS
-                Row(
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: _buildFormFieldWrapper(
-                        label: 'PAGE FORMAT',
-                        child: _buildDropdownContainer(
-                          value: _pageFormat,
-                          items: _pageFormatOptions,
-                          onChanged: (v) => setState(() => _pageFormat = v!),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _buildFormFieldWrapper(
-                        label: 'PAGE MODE',
-                        child: _buildDropdownContainer(
-                          value: _pageMode,
-                          items: _pageModeOptions,
-                          onChanged: (v) => setState(() => _pageMode = v!),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _buildFormFieldWrapper(
-                        label: 'FONT TYPE',
-                        child: _buildDropdownContainer(
-                          value: _fontType,
-                          items: _fontTypeOptions,
-                          onChanged: (v) => setState(() => _fontType = v!),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: _buildFormFieldWrapper(
-                        label: 'STATUS',
-                        child: _buildDropdownContainer(
-                          value: _status,
-                          items: _statusOptions,
-                          onChanged: (v) => setState(() => _status = v!),
-                        ),
-                      ),
-                    ),
+                    Expanded(child: docNameField),
+                    const SizedBox(width: 14),
+                    Expanded(child: startDateField),
                   ],
-                ),
-
-                const SizedBox(height: 14),
-
-                // Row 3: MARGIN TOP, MARGIN LEFT, MARGIN RIGHT, MARGIN HEADER
-                Row(
-                  children: [
-                    Expanded(child: _buildNumericInput('MARGIN TOP', _marginTopCtrl)),
-                    const SizedBox(width: 10),
-                    Expanded(child: _buildNumericInput('MARGIN LEFT', _marginLeftCtrl)),
-                    const SizedBox(width: 10),
-                    Expanded(child: _buildNumericInput('MARGIN RIGHT', _marginRightCtrl)),
-                    const SizedBox(width: 10),
-                    Expanded(child: _buildNumericInput('MARGIN HEADER', _marginHeaderCtrl)),
-                  ],
-                ),
-
-                const SizedBox(height: 14),
-
-                // Row 4: MARGIN BOTTOM, AUTO PAGE BREAK
-                Row(
-                  children: [
-                    Expanded(child: _buildNumericInput('MARGIN BOTTOM', _marginBottomCtrl)),
-                    const SizedBox(width: 10),
-                    Expanded(child: _buildNumericInput('AUTO PAGE BREAK', _autoPageBreakCtrl)),
-                    const SizedBox(width: 10),
-                    const Expanded(child: SizedBox()),
-                    const SizedBox(width: 10),
-                    const Expanded(child: SizedBox()),
-                  ],
-                ),
-              ],
+                );
+              },
             ),
           ),
         ],
@@ -977,10 +888,15 @@ class _B2bDocumentFormScreenState extends State<B2bDocumentFormScreen> {
           const SizedBox(height: 12),
           TextFormField(
             controller: _introTextCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Introductory Intent Letter Paragraph',
-              border: OutlineInputBorder(),
-              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            decoration: InputDecoration(
+              labelText: _documentType == 'Quotation'
+                  ? 'Introductory Intent Letter Paragraph'
+                  : 'Introductory Letter (Blank unless specified)',
+              hintText: _documentType == 'Quotation'
+                  ? null
+                  : 'Leave blank or enter custom introductory notes...',
+              border: const OutlineInputBorder(),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             ),
             maxLines: 3,
           ),
@@ -1426,27 +1342,6 @@ class _B2bDocumentFormScreenState extends State<B2bDocumentFormScreen> {
             return DropdownMenuItem(value: i, child: Text(i, style: const TextStyle(fontSize: 13)));
           }).toList(),
           onChanged: onChanged,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNumericInput(String label, TextEditingController ctrl) {
-    return _buildFormFieldWrapper(
-      label: label,
-      child: Container(
-        height: 44,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: TextFormField(
-          controller: ctrl,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            isDense: true,
-            contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-            border: OutlineInputBorder(),
-          ),
         ),
       ),
     );

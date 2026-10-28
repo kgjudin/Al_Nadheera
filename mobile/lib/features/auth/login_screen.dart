@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/widgets/main_layout.dart';
 import '../../services/api_service.dart';
 import '../../services/permission_service.dart';
+import '../../services/employee_id_service.dart';
 
 class LoginScreen extends StatefulWidget {
   final String? initialMessage;
@@ -281,6 +282,9 @@ class _LoginScreenState extends State<LoginScreen> {
         throw Exception('Passwords do not match');
       }
 
+      // Auto-generate standard sequential Employee ID (ANCC-EMP-001)
+      final employeeId = await EmployeeIdService.fetchNextEmployeeId();
+
       // Register via Supabase Auth with backend admin fallback
       try {
         final res = await Supabase.instance.client.auth.signUp(
@@ -291,6 +295,7 @@ class _LoginScreenState extends State<LoginScreen> {
             'phone': phone,
             'role': 'Staff',
             'status': 'Pending',
+            'employee_id': employeeId,
           },
         );
 
@@ -299,6 +304,7 @@ class _LoginScreenState extends State<LoginScreen> {
           try {
             await Supabase.instance.client.from('employees').upsert({
               'id': uid,
+              'employee_id': employeeId,
               'name': name,
               'email': email,
               'phone': phone.isNotEmpty ? phone : null,
@@ -310,7 +316,7 @@ class _LoginScreenState extends State<LoginScreen> {
       } catch (authErr) {
         // Fallback to backend admin registration (uses service-role key, bypasses signup_disabled)
         try {
-          await ApiService().register(name, email, phone, password);
+          await ApiService().register(name, email, phone, password, employeeId: employeeId);
         } catch (backendErr) {
           if (authErr is AuthException) {
             rethrow;
@@ -333,7 +339,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
         _showAdmissionPendingModal(
           title: 'Registration Submitted',
-          message: 'Thank you, $name!\n\nYour account has been submitted successfully. You cannot directly enter the app yet.\n\nYou can access it once the Super Admin admits and approves your request.',
+          message: 'Thank you, $name!\n\nYour Employee ID is $employeeId.\n\nYour account has been submitted successfully. You cannot directly enter the app yet.\n\nYou can access it once the Super Admin admits and approves your request.',
         );
       }
     } on AuthException catch (e) {

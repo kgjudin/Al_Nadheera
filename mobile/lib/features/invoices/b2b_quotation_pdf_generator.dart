@@ -146,9 +146,16 @@ class B2bQuotationPdfGenerator {
 
     final salutation = invoice.salutation?.isNotEmpty == true ? invoice.salutation! : 'Respected Sir,';
 
-    final introText = invoice.introText?.isNotEmpty == true
+    final docType = (invoice.documentType != null && invoice.documentType!.isNotEmpty)
+        ? invoice.documentType!
+        : (sourceCfg['documentType']?.toString() ?? 'Quotation');
+    final isQuotation = docType.trim().toLowerCase() == 'quotation';
+
+    final introText = invoice.introText != null
         ? invoice.introText!
-        : 'We with kind esteem would like to inform you that we confirm our committed intention to engage in your Project to provide the Project Management and Construction Management Services for the above mention project. Our organization is pleased to submit our best Competitive offer in conformity to the Specification and Drawing for an amount of BOQ Details Below.';
+        : (isQuotation
+            ? 'We with kind esteem would like to inform you that we confirm our committed intention to engage in your Project to provide the Project Management and Construction Management Services for the above mention project. Our organization is pleased to submit our best Competitive offer in conformity to the Specification and Drawing for an amount of BOQ Details Below.'
+            : '');
 
     final tableHeaderTitle = invoice.tableHeaderTitle?.isNotEmpty == true
         ? invoice.tableHeaderTitle!
@@ -277,14 +284,17 @@ class B2bQuotationPdfGenerator {
               salutation,
               style: pw.TextStyle(fontSize: 9.5, fontWeight: pw.FontWeight.bold),
             ),
-            pw.SizedBox(height: 4),
-            pw.Text(
-              introText,
-              style: const pw.TextStyle(fontSize: 9, lineSpacing: 1.3),
-              textAlign: pw.TextAlign.justify,
-            ),
-
-            pw.SizedBox(height: 10),
+            if (introText.trim().isNotEmpty) ...[
+              pw.SizedBox(height: 4),
+              pw.Text(
+                introText,
+                style: const pw.TextStyle(fontSize: 9, lineSpacing: 1.3),
+                textAlign: pw.TextAlign.justify,
+              ),
+              pw.SizedBox(height: 10),
+            ] else ...[
+              pw.SizedBox(height: 6),
+            ],
 
             // ==================== TABLE SUB-HEADER TITLE ====================
             if (tableHeaderTitle.isNotEmpty) ...[

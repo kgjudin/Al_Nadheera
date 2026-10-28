@@ -1,5 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 const supabase = require('../config/supabase');
+const { fetchNextEmployeeId } = require('../utils/employeeIdService');
 
 const anonClient = createClient(
   process.env.SUPABASE_URL,
@@ -36,6 +37,12 @@ exports.register = async (req, res) => {
       });
     }
 
+    // Auto-generate employee ID if not provided (e.g. ANCC-EMP-001)
+    let empId = req.body.employee_id;
+    if (!empId || empId.trim() === '') {
+      empId = await fetchNextEmployeeId();
+    }
+
     // Create auth user in Supabase
     const { data: authData, error: authErr } = await supabase.auth.admin.createUser({
       email: trimmedEmail,
@@ -46,6 +53,7 @@ exports.register = async (req, res) => {
         phone: phone ? phone.trim() : null,
         role: 'Staff',
         status: 'Pending',
+        employee_id: empId,
       },
     });
 
@@ -55,11 +63,12 @@ exports.register = async (req, res) => {
 
     const userId = authData.user.id;
 
-    // Upsert employee record with status 'Pending'
+    // Upsert employee record with status 'Pending' and standard employee_id
     const { data: newEmp, error: empErr } = await supabase
       .from('employees')
       .upsert({
         id: userId,
+        employee_id: empId,
         name: name.trim(),
         email: trimmedEmail,
         phone: phone ? phone.trim() : null,
@@ -78,6 +87,7 @@ exports.register = async (req, res) => {
       message: 'Registration submitted successfully. Pending Super Admin approval.',
       data: {
         id: userId,
+        employee_id: empId,
         name: name.trim(),
         email: trimmedEmail,
         status: 'Pending',

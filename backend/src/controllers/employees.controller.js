@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase');
+const { fetchNextEmployeeId } = require('../utils/employeeIdService');
 
 exports.getAllEmployees = async (req, res) => {
   try {
@@ -50,48 +51,67 @@ exports.createEmployee = async (req, res) => {
       if (rData) finalRoleId = rData.id;
     }
 
+    // Auto-generate employee ID if not provided (e.g. ANCC-EMP-001)
+    let finalEmpId = employee_id;
+    if (!finalEmpId || finalEmpId.trim() === '') {
+      finalEmpId = await fetchNextEmployeeId();
+    }
+
     let authUserId = null;
     
     // If an email is provided, create a Supabase Auth User so they can log in
     if (email) {
+      const trimmedEmail = email.trim().toLowerCase();
       const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-        email: email,
+        email: trimmedEmail,
         password: 'Password123!', // Default password for new employees
         email_confirm: true,      // Auto-confirm so they can log in immediately
         user_metadata: {
           name: name,
           phone: phone,
           role: finalRole,
+          employee_id: finalEmpId,
         }
       });
       
       if (authError) {
         console.error("Auth creation error:", authError.message);
+        // If user already exists in auth, retrieve their id so we can link
+        if (authError.message?.toLowerCase().includes('already') || authError.status === 422) {
+          try {
+            const { data: userList } = await supabase.auth.admin.listUsers();
+            const existing = userList?.users?.find(u => u.email?.toLowerCase() === trimmedEmail);
+            if (existing) {
+              authUserId = existing.id;
+            }
+          } catch (_) {}
+        }
       } else if (authData && authData.user) {
         authUserId = authData.user.id;
       }
     }
-    
+
     const payload = { 
-      employee_id, 
+      employee_id: finalEmpId, 
       name, 
-      phone, 
-      email, 
+      phone: phone || null, 
+      email: email ? email.trim().toLowerCase() : null, 
       role: finalRole, 
       role_id: finalRoleId,
       custom_permissions: custom_permissions || null,
-      joining_date, 
-      assigned_site_id, 
-      status, 
-      profile_image_url 
+      joining_date: joining_date || null, 
+      assigned_site_id: assigned_site_id || null, 
+      status: status || 'Active', 
+      profile_image_url: profile_image_url || null,
     };
     if (authUserId) {
       payload.id = authUserId; // Link the employee record to the auth user
     }
 
+    // Use upsert to gracefully handle triggers on auth.users that pre-insert employees
     const { data, error } = await supabase
       .from('employees')
-      .insert([payload])
+      .upsert(payload, { onConflict: 'id' })
       .select()
       .single();
       
@@ -113,6 +133,12 @@ exports.updateEmployee = async (req, res) => {
     } else if (updates.role && !updates.role_id) {
       const { data: rData } = await supabase.from('roles').select('id').ilike('name', updates.role).maybeSingle();
       if (rData) updates.role_id = rData.id;
+    }
+
+    // Ensure employee has an employee_id in standard format
+    const { data: currentEmp } = await supabase.from('employees').select('employee_id').eq('id', id).maybeSingle();
+    if (!currentEmp || !currentEmp.employee_id) {
+      updates.employee_id = await fetchNextEmployeeId();
     }
 
     const { data, error } = await supabase
@@ -202,6 +228,12 @@ exports.approveEmployee = async (req, res) => {
     } else if (updates.role && !updates.role_id) {
       const { data: rData } = await supabase.from('roles').select('id').ilike('name', updates.role).maybeSingle();
       if (rData) updates.role_id = rData.id;
+    }
+
+    // Ensure employee has an employee_id in standard format
+    const { data: currentEmp } = await supabase.from('employees').select('employee_id').eq('id', id).maybeSingle();
+    if (!currentEmp || !currentEmp.employee_id) {
+      updates.employee_id = await fetchNextEmployeeId();
     }
 
     const { data, error } = await supabase
