@@ -59,6 +59,7 @@ const createRecord = (table) => async (req, res) => {
       });
       delete payload.attachments;
     }
+    delete payload.id;
     
     const { data, error } = await supabase.from(table).insert([payload]).select().single();
     if (error) throw error;
@@ -98,7 +99,11 @@ const updateRecord = (table) => async (req, res) => {
       });
       delete payload.attachments;
     }
-    
+    delete payload.id;
+    delete payload.created_at;
+    delete payload.site_id;
+    payload.updated_at = new Date().toISOString();
+
     const { data, error } = await supabase.from(table).update(payload).eq('id', id).select().single();
     if (error) throw error;
     if (table === 'material_costs' && data) {

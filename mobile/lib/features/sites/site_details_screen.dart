@@ -15,12 +15,13 @@ import 'additional_expenses/site_additional_expense_tab.dart';
 import 'tasks/site_tasks_tab.dart';
 import 'chat/site_chat_screen.dart';
 import 'add_edit_site_screen.dart';
+import '../../core/widgets/site_pie_chart_widget.dart';
 
 class _SiteTabDefinition {
   final String key;
   final String title;
   final IconData icon;
-  final Widget Function(int refreshCount) builder;
+  final Widget Function(int refreshCount, Site? site) builder;
 
   const _SiteTabDefinition({
     required this.key,
@@ -77,9 +78,10 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
         key: AppModules.siteSummary,
         title: 'Summary',
         icon: Icons.assessment_outlined,
-        builder: (refreshCount) => SiteSummaryTab(
+        builder: (refreshCount, currentSite) => SiteSummaryTab(
           key: ValueKey('summary_$refreshCount'),
           siteId: widget.siteId,
+          site: currentSite,
           onDataChanged: _loadSite,
         ),
       ),
@@ -87,7 +89,7 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
         key: AppModules.siteTasks,
         title: 'Tasks',
         icon: Icons.check_box_outlined,
-        builder: (refreshCount) => SiteTasksTab(
+        builder: (refreshCount, _) => SiteTasksTab(
           key: ValueKey('tasks_$refreshCount'),
           siteId: widget.siteId,
         ),
@@ -96,7 +98,7 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
         key: AppModules.siteLabour,
         title: 'Labour',
         icon: Icons.engineering_outlined,
-        builder: (refreshCount) => SiteLabourTab(
+        builder: (refreshCount, _) => SiteLabourTab(
           key: ValueKey('labour_$refreshCount'),
           siteId: widget.siteId,
           onDataChanged: _loadSite,
@@ -106,7 +108,7 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
         key: AppModules.siteMaterials,
         title: 'Materials',
         icon: Icons.inventory_outlined,
-        builder: (refreshCount) => SiteMaterialTab(
+        builder: (refreshCount, _) => SiteMaterialTab(
           key: ValueKey('material_$refreshCount'),
           siteId: widget.siteId,
           onDataChanged: _loadSite,
@@ -116,7 +118,7 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
         key: AppModules.siteSubcontractors,
         title: 'Sub-Contractors',
         icon: Icons.handshake_outlined,
-        builder: (refreshCount) => SiteSubcontractorTab(
+        builder: (refreshCount, _) => SiteSubcontractorTab(
           key: ValueKey('subcontractors_$refreshCount'),
           siteId: widget.siteId,
           onDataChanged: _loadSite,
@@ -126,7 +128,7 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
         key: AppModules.siteAdditionalExpenses,
         title: 'Additional',
         icon: Icons.receipt_long_outlined,
-        builder: (refreshCount) => SiteAdditionalExpenseTab(
+        builder: (refreshCount, _) => SiteAdditionalExpenseTab(
           key: ValueKey('additional_$refreshCount'),
           siteId: widget.siteId,
           onDataChanged: _loadSite,
@@ -136,7 +138,7 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
         key: AppModules.siteBudget,
         title: 'VAT Details',
         icon: Icons.receipt_long_rounded,
-        builder: (refreshCount) => SiteBudgetTab(
+        builder: (refreshCount, _) => SiteBudgetTab(
           key: ValueKey('vat_details_$refreshCount'),
           siteId: widget.siteId,
           siteName: widget.initialSite?.name,
@@ -281,11 +283,17 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
 
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (ctx, scrollController) => SingleChildScrollView(
+          controller: scrollController,
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -302,7 +310,7 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'Total Spend Breakdown',
+                    'Financial & Spend Breakdown',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF0A2540)),
                   ),
                   Container(
@@ -319,46 +327,71 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
-              const Text(
-                'Combined expenditure from all 5 site modules:',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
+              const SizedBox(height: 4),
+              Text(
+                '${site.name} • Combined expenditure across all modules',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
               const SizedBox(height: 16),
-              ...items.map((item) => Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(7),
-                            decoration: BoxDecoration(
-                              color: (item['color'] as Color).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(item['icon'] as IconData, size: 16, color: item['color'] as Color),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              item['title'] as String,
-                              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF0A2540)),
-                            ),
-                          ),
-                          Text(
-                            currencyFormat.format(item['amount'] as double),
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0A2540)),
-                          ),
-                        ],
-                      ),
+              // Graphical Pie Chart Representation
+              SitePieChartWidget(
+                site: site,
+                isCard: true,
+                showTitle: true,
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'MODULE EXPENDITURE DETAILS',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 0.5),
+              ),
+              const SizedBox(height: 10),
+              ...items.map((item) {
+                final amt = item['amount'] as double;
+                final pct = site.spent > 0 ? (amt / site.spent * 100).toStringAsFixed(1) : '0.0';
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
                     ),
-                  )),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(
+                            color: (item['color'] as Color).withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(item['icon'] as IconData, size: 16, color: item['color'] as Color),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item['title'] as String,
+                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Color(0xFF0A2540)),
+                              ),
+                              Text(
+                                '$pct% of total spend',
+                                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          currencyFormat.format(amt),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF0A2540)),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
               const Divider(height: 20),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -369,6 +402,18 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF0B5ED7)),
                   ),
                 ],
+              ),
+              const SizedBox(height: 14),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Close Breakdown'),
+                ),
               ),
             ],
           ),
@@ -392,6 +437,16 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
         foregroundColor: const Color(0xFF0A2540),
         title: const Text('Site Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         actions: [
+          if (canViewFinancials)
+            IconButton(
+              icon: const Icon(Icons.pie_chart_rounded, color: Color(0xFF0B5ED7)),
+              tooltip: 'Financial Pie Chart',
+              onPressed: () async {
+                final site = await _siteFuture.catchError((_) => widget.initialSite!);
+                if (!context.mounted) return;
+                _showSpendBreakdownDialog(context, site);
+              },
+            ),
           if (canChat)
             IconButton(
               icon: const Icon(Icons.chat_bubble_outline_rounded, color: Color(0xFF0B5ED7)),
@@ -638,6 +693,30 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
                               ),
                             ],
                           ),
+                          const SizedBox(height: 10),
+                          InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: site == null ? null : () => _showSpendBreakdownDialog(context, site),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.white24),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: const [
+                                  Icon(Icons.pie_chart_rounded, size: 15, color: Colors.orangeAccent),
+                                  SizedBox(width: 6),
+                                  Text(
+                                    'View Graphical Pie Chart Breakdown',
+                                    style: TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ] else ...[
                           Row(
                             children: [
@@ -720,7 +799,7 @@ class _SiteDetailsScreenState extends State<SiteDetailsScreen> with TickerProvid
                     controller: _tabController,
                     children: _accessibleTabs.map((t) {
                       final refreshCount = _tabRefreshCounts[t.key] ?? 0;
-                      return t.builder(refreshCount);
+                      return t.builder(refreshCount, site);
                     }).toList(),
                   ),
                 ),

@@ -126,6 +126,14 @@ class ApiService {
     final response = await http.post(Uri.parse('$baseUrl/sites/$siteId/labour'), headers: {'Content-Type': 'application/json'}, body: json.encode(data));
     _processResponse(response);
   }
+  Future<void> updateLabour(String id, Map<String, dynamic> data) async {
+    final response = await http.put(Uri.parse('$baseUrl/sites/labour/$id'), headers: {'Content-Type': 'application/json'}, body: json.encode(data));
+    _processResponse(response);
+  }
+  Future<void> deleteLabour(String id) async {
+    final response = await http.delete(Uri.parse('$baseUrl/sites/labour/$id'));
+    _processResponse(response);
+  }
 
   Future<List<dynamic>> getMaterials(String siteId) async {
     final response = await http.get(Uri.parse('$baseUrl/sites/$siteId/materials'));

@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../services/api_service.dart';
 import '../../../models/financial_models.dart';
+import '../../../models/site_model.dart';
+import '../../../core/widgets/site_pie_chart_widget.dart';
 
 class SiteSummaryTab extends StatefulWidget {
   final String siteId;
+  final Site? site;
   final VoidCallback? onDataChanged;
-  const SiteSummaryTab({super.key, required this.siteId, this.onDataChanged});
+  const SiteSummaryTab({super.key, required this.siteId, this.site, this.onDataChanged});
 
   @override
   State<SiteSummaryTab> createState() => _SiteSummaryTabState();
@@ -203,6 +206,13 @@ class _SiteSummaryTabState extends State<SiteSummaryTab> {
           return ListView(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 80),
             children: [
+              if (widget.site != null) ...[
+                SitePieChartWidget(
+                  site: widget.site!,
+                  onTapDetails: () => widget.onDataChanged?.call(),
+                ),
+                const SizedBox(height: 14),
+              ],
               // COLLAPSIBLE OVERVIEW CARD (Compact & Hide by Default)
               Container(
                 decoration: BoxDecoration(
