@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/role_model.dart';
 import '../core/constants/app_modules.dart';
+import 'api_service.dart';
 
 class PermissionService extends ChangeNotifier {
   static final PermissionService _instance = PermissionService._internal();
@@ -26,12 +27,11 @@ class PermissionService extends ChangeNotifier {
   bool get isAdmin => _isAdmin || _isSuperAdmin;
   bool get isManager => _isManager || _isAdmin || _isSuperAdmin;
   bool get isLoading => _isLoading;
-  bool get canAccessReminders => _isSuperAdmin;
+  bool get canAccessReminders => canView(AppModules.reminders);
   Map<String, ModulePermission> get permissions => _permissions;
 
   bool canView(String moduleKey) {
     if (_isSuperAdmin) return true;
-    if (moduleKey == AppModules.reminders) return false;
     final p = _permissions[moduleKey];
     if (p != null) return p.canView;
     if (_isAdmin) return true;
@@ -40,7 +40,6 @@ class PermissionService extends ChangeNotifier {
 
   bool canCreate(String moduleKey) {
     if (_isSuperAdmin) return true;
-    if (moduleKey == AppModules.reminders) return false;
     final p = _permissions[moduleKey];
     if (p != null) return p.canCreate;
     if (_isAdmin) return true;
@@ -49,7 +48,6 @@ class PermissionService extends ChangeNotifier {
 
   bool canEdit(String moduleKey) {
     if (_isSuperAdmin) return true;
-    if (moduleKey == AppModules.reminders) return false;
     final p = _permissions[moduleKey];
     if (p != null) return p.canEdit;
     if (_isAdmin) return true;
@@ -58,7 +56,6 @@ class PermissionService extends ChangeNotifier {
 
   bool canDelete(String moduleKey) {
     if (_isSuperAdmin) return true;
-    if (moduleKey == AppModules.reminders) return false;
     final p = _permissions[moduleKey];
     if (p != null) return p.canDelete;
     if (_isAdmin) return moduleKey != AppModules.roleManagement;
@@ -181,25 +178,72 @@ class PermissionService extends ChangeNotifier {
         return;
       }
 
+      // 1.5. Try fetching from backend API first for 100% parity with calculated user permissions
+      try {
+        final apiData = await ApiService().getUserPermissions(user.id);
+        if (apiData != null && apiData['permissions'] is Map) {
+          final permMap = apiData['permissions'] as Map;
+          final Map<String, ModulePermission> apiPermissions = {};
+          for (final mod in AppModules.allModules) {
+            final v = permMap[mod];
+            if (v != null && v is Map) {
+              apiPermissions[mod] = ModulePermission(
+                moduleKey: mod,
+                canView: v['can_view'] == true || v['can_view'] == 1 || v['can_view']?.toString() == 'true',
+                canCreate: v['can_create'] == true || v['can_create'] == 1 || v['can_create']?.toString() == 'true',
+                canEdit: v['can_edit'] == true || v['can_edit'] == 1 || v['can_edit']?.toString() == 'true',
+                canDelete: v['can_delete'] == true || v['can_delete'] == 1 || v['can_delete']?.toString() == 'true',
+              );
+            }
+          }
+          if (apiPermissions.isNotEmpty) {
+            _permissions = apiPermissions;
+            _currentRole = (apiData['role']?.toString().isNotEmpty == true)
+                ? apiData['role'].toString()
+                : roleName;
+            _currentRoleId = apiData['role_id']?.toString() ?? roleId;
+            _isSuperAdmin = apiData['is_super_admin'] == true || isOwner;
+            _isAdmin = apiData['is_admin'] == true || _isSuperAdmin;
+            _isManager = apiData['is_manager'] == true || _isAdmin;
+            _isLoading = false;
+            notifyListeners();
+            return;
+          }
+        }
+      } catch (e) {
+        debugPrint('Backend permissions API fallback to Supabase: $e');
+      }
+
       // 2. Fetch role permissions from role_permissions table
       List<dynamic> rolePermRows = [];
-      if (roleId != null && roleId.isNotEmpty) {
-        final res = await _supabase
-            .from('role_permissions')
-            .select('*')
-            .eq('role_id', roleId);
-        rolePermRows = res as List;
-      } else {
-        // Find role by name
-        final roleMatch = await _supabase
-            .from('roles')
-            .select('id, role_permissions(*)')
-            .ilike('name', roleName)
-            .maybeSingle();
+      String? resolvedRoleId = roleId;
 
-        if (roleMatch != null && roleMatch['role_permissions'] != null) {
-          _currentRoleId = roleMatch['id']?.toString();
-          rolePermRows = roleMatch['role_permissions'] as List;
+      if (resolvedRoleId == null || resolvedRoleId.isEmpty) {
+        try {
+          final roleMatch = await _supabase
+              .from('roles')
+              .select('id')
+              .ilike('name', roleName.trim())
+              .maybeSingle();
+
+          if (roleMatch != null && roleMatch['id'] != null) {
+            resolvedRoleId = roleMatch['id'].toString();
+            _currentRoleId = resolvedRoleId;
+          }
+        } catch (e) {
+          debugPrint('Error finding role by name: $e');
+        }
+      }
+
+      if (resolvedRoleId != null && resolvedRoleId.isNotEmpty) {
+        try {
+          final res = await _supabase
+              .from('role_permissions')
+              .select('*')
+              .eq('role_id', resolvedRoleId);
+          rolePermRows = res as List;
+        } catch (e) {
+          debugPrint('Error fetching role_permissions for $resolvedRoleId: $e');
         }
       }
 
@@ -207,7 +251,7 @@ class PermissionService extends ChangeNotifier {
       final Map<String, ModulePermission> baseMap = {};
       for (final mod in AppModules.allModules) {
         final match = rolePermRows.firstWhere(
-          (r) => r['module_key']?.toString() == mod,
+          (r) => r['module_key']?.toString().trim().toLowerCase() == mod.trim().toLowerCase(),
           orElse: () => null,
         );
 

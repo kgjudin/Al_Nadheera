@@ -7,6 +7,7 @@ const ALL_MODULES = [
   'employees',
   'budget',
   'ipc',
+  'reminders',
   'document_templates',
   'chat',
   'products',

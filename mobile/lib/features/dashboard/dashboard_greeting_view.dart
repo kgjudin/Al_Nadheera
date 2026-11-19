@@ -3,10 +3,14 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/constants/app_modules.dart';
 import '../../models/task_model.dart';
+import '../../models/reminder_model.dart';
 import '../../services/permission_service.dart';
+import '../../services/reminder_service.dart';
 import '../profile/profile_settings_screen.dart';
 import '../ipc/ipc_list_screen.dart';
 import '../document_templates/document_template_settings_screen.dart';
+import '../reminders/reminders_screen.dart';
+import '../roles/role_management_screen.dart';
 import '../sites/tasks/widgets/task_details_sheet.dart';
 import '../sites/site_details_screen.dart';
 
@@ -37,12 +41,39 @@ class _DashboardGreetingViewState extends State<DashboardGreetingView> {
 
   List<TaskModel> _myTasks = [];
   bool _isLoadingTasks = true;
+  List<ReminderModel> _pendingReminders = [];
+  bool _isLoadingReminders = true;
 
   @override
   void initState() {
     super.initState();
     _loadUserInfo();
     _fetchMyTasks();
+    _fetchReminders();
+  }
+
+  Future<void> _fetchReminders() async {
+    if (!_permissionService.canView(AppModules.reminders)) {
+      if (mounted) {
+        setState(() {
+          _pendingReminders = [];
+          _isLoadingReminders = false;
+        });
+      }
+      return;
+    }
+    try {
+      final list = await ReminderService().getPendingReminders();
+      if (mounted) {
+        setState(() {
+          _pendingReminders = list;
+          _isLoadingReminders = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading reminders in greeting view: $e');
+      if (mounted) setState(() => _isLoadingReminders = false);
+    }
   }
 
   void _openModule(String moduleKey, int fallbackTab) {
@@ -139,6 +170,7 @@ class _DashboardGreetingViewState extends State<DashboardGreetingView> {
             await _permissionService.loadUserPermissions();
             await _loadUserInfo();
             await _fetchMyTasks();
+            await _fetchReminders();
           },
           child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -166,6 +198,18 @@ class _DashboardGreetingViewState extends State<DashboardGreetingView> {
               const SizedBox(height: 12),
               _buildAccessibleModulesGrid(context),
               const SizedBox(height: 24),
+
+              // Reminders & Renewals Section (if permitted and pending alerts exist)
+              if (_permissionService.canView(AppModules.reminders) && _pendingReminders.isNotEmpty) ...[
+                _buildSectionTitle(
+                  title: 'REMINDERS & RENEWALS',
+                  subtitle: '${_pendingReminders.length} pending expiration & renewal alert${_pendingReminders.length > 1 ? "s" : ""}',
+                  icon: Icons.notification_important_rounded,
+                ),
+                const SizedBox(height: 12),
+                _buildRemindersSummaryCard(context),
+                const SizedBox(height: 24),
+              ],
 
               // 5. Section: My Assigned Tasks Preview
               _buildSectionTitle(
@@ -621,6 +665,38 @@ class _DashboardGreetingViewState extends State<DashboardGreetingView> {
       ));
     }
 
+    if (_permissionService.canView(AppModules.reminders)) {
+      items.add(_WorkspaceItem(
+        title: 'Reminders & Renewals',
+        description: 'Visa, CPR, passport & renewal alerts',
+        icon: Icons.notification_important_rounded,
+        iconColor: const Color(0xFF0F4C81),
+        bgColor: const Color(0xFFEFF6FF),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const RemindersScreen()),
+          ).then((_) => _fetchReminders());
+        },
+      ));
+    }
+
+    if (_permissionService.canView(AppModules.roleManagement) || _permissionService.isAdmin) {
+      items.add(_WorkspaceItem(
+        title: 'Role & Access Control',
+        description: 'Configure roles & employee permissions',
+        icon: Icons.admin_panel_settings_rounded,
+        iconColor: const Color(0xFF8E24AA),
+        bgColor: const Color(0xFFFAF5FF),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const RoleManagementScreen()),
+          );
+        },
+      ));
+    }
+
     if (items.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(20),
@@ -721,6 +797,112 @@ class _DashboardGreetingViewState extends State<DashboardGreetingView> {
           },
         );
       },
+    );
+  }
+
+  Widget _buildRemindersSummaryCard(BuildContext context) {
+    final overdueCount = _pendingReminders.where((r) => r.isOverdue).length;
+    final displayList = _pendingReminders.take(3).toList();
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.withValues(alpha: 0.15)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0F4C81).withValues(alpha: 0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.alarm_rounded, color: Color(0xFF0F4C81), size: 18),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Upcoming Expirations & Renewals',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF0A2540),
+                        ),
+                      ),
+                      Text(
+                        overdueCount > 0
+                            ? '$overdueCount overdue alert${overdueCount > 1 ? "s" : ""} require attention'
+                            : '${_pendingReminders.length} pending alert${_pendingReminders.length > 1 ? "s" : ""}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: overdueCount > 0 ? Colors.red : Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const RemindersScreen()),
+                    ).then((_) => _fetchReminders());
+                  },
+                  child: const Text('View All', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          ...displayList.map((r) {
+            return ListTile(
+              dense: true,
+              leading: CircleAvatar(
+                radius: 14,
+                backgroundColor: r.categoryColor.withValues(alpha: 0.12),
+                child: Icon(r.categoryIcon, size: 14, color: r.categoryColor),
+              ),
+              title: Text(
+                r.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+              ),
+              subtitle: Text(
+                'Due ${DateFormat('dd MMM yyyy').format(r.dueDate)} • ${r.remainingText}',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: r.isOverdue ? Colors.red : Colors.grey[600],
+                  fontWeight: r.isOverdue ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+              trailing: const Icon(Icons.chevron_right, size: 16, color: Colors.grey),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const RemindersScreen()),
+                ).then((_) => _fetchReminders());
+              },
+            );
+          }),
+        ],
+      ),
     );
   }
 

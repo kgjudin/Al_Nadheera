@@ -137,6 +137,9 @@ class _MainLayoutState extends State<MainLayout> {
         case 8:
           _currentModule = AppModules.customers;
           break;
+        case 9:
+          _currentModule = AppModules.reminders;
+          break;
         default:
           _currentModule = AppModules.dashboard;
       }
@@ -203,7 +206,7 @@ class _MainLayoutState extends State<MainLayout> {
               );
       case AppModules.reminders:
         return _permissionService.canView(AppModules.reminders)
-            ? const RemindersScreen(showAppBar: false)
+            ? const RemindersScreen(showAppBar: true)
             : _AccessRestrictedView(
                 moduleTitle: 'Reminders & Renewals',
                 onBackToDashboard: () => _navigateToModule(AppModules.dashboard),
@@ -224,6 +227,7 @@ class _MainLayoutState extends State<MainLayout> {
     final canViewBudget = _permissionService.canView(AppModules.budget);
     final canManageRoles = _permissionService.canView(AppModules.roleManagement) ||
         _permissionService.isAdmin;
+    final canViewReminders = _permissionService.canView(AppModules.reminders);
 
     showModalBottomSheet(
       context: context,
@@ -347,8 +351,8 @@ class _MainLayoutState extends State<MainLayout> {
                     const Divider(height: 1),
                   ],
 
-                  // Reminders & Renewals (Super Admin Only)
-                  if (_permissionService.canAccessReminders) ...[
+                  // Reminders & Renewals
+                  if (canViewReminders) ...[
                     ListTile(
                       leading: Container(
                         padding: const EdgeInsets.all(8),
@@ -359,7 +363,7 @@ class _MainLayoutState extends State<MainLayout> {
                         child: const Icon(Icons.notification_important_rounded, color: Color(0xFF0F4C81)),
                       ),
                       title: const Text('Reminders & Renewals', style: TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: const Text('Visa, passport, CPR & personal alerts for Super Admin'),
+                      subtitle: const Text('Visa, passport, CPR & employee alerts'),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: () {
                         Navigator.pop(sheetContext);

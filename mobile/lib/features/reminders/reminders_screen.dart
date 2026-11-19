@@ -5,6 +5,7 @@ import '../../models/reminder_model.dart';
 import '../../models/employee_model.dart';
 import '../../services/reminder_service.dart';
 import '../../services/permission_service.dart';
+import '../../core/constants/app_modules.dart';
 
 class RemindersScreen extends StatefulWidget {
   final bool showAppBar;
@@ -113,6 +114,12 @@ class _RemindersScreenState extends State<RemindersScreen> {
   }
 
   Future<void> _toggleStatus(ReminderModel reminder) async {
+    if (!_permissionService.canEdit(AppModules.reminders)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You do not have permission to edit reminder status')),
+      );
+      return;
+    }
     final newStatus = reminder.isCompleted ? 'Pending' : 'Completed';
     try {
       await _reminderService.toggleReminderStatus(reminder.id, newStatus);
@@ -140,6 +147,12 @@ class _RemindersScreenState extends State<RemindersScreen> {
   }
 
   Future<void> _deleteReminder(ReminderModel reminder) async {
+    if (!_permissionService.canDelete(AppModules.reminders)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You do not have permission to delete reminders')),
+      );
+      return;
+    }
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -179,6 +192,18 @@ class _RemindersScreenState extends State<RemindersScreen> {
   }
 
   void _openAddEditDialog([ReminderModel? reminder]) {
+    if (reminder == null && !_permissionService.canCreate(AppModules.reminders)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You do not have permission to create reminders')),
+      );
+      return;
+    }
+    if (reminder != null && !_permissionService.canEdit(AppModules.reminders)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You do not have permission to edit reminders')),
+      );
+      return;
+    }
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -194,15 +219,17 @@ class _RemindersScreenState extends State<RemindersScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_permissionService.isSuperAdmin) {
+    if (!_permissionService.canView(AppModules.reminders)) {
       return Scaffold(
         appBar: widget.showAppBar
             ? AppBar(
                 title: const Text('Reminders & Renewals'),
-                leading: IconButton(
-                  icon: const Icon(Icons.arrow_back_rounded),
-                  onPressed: () => Navigator.maybePop(context),
-                ),
+                leading: Navigator.canPop(context)
+                    ? IconButton(
+                        icon: const Icon(Icons.arrow_back_rounded),
+                        onPressed: () => Navigator.pop(context),
+                      )
+                    : null,
               )
             : null,
         body: Center(
@@ -226,7 +253,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Only Super Admin accounts have permission to access and manage renewals and reminders.',
+                  'You do not have permission to access and manage renewals and reminders.',
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                 ),
@@ -259,38 +286,41 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   ),
                 ],
               ),
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F2537)),
-                onPressed: () => Navigator.maybePop(context),
-              ),
+              leading: Navigator.canPop(context)
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded, color: Color(0xFF0F2537)),
+                      onPressed: () => Navigator.pop(context),
+                    )
+                  : null,
               actions: [
                 IconButton(
                   icon: const Icon(Icons.refresh_rounded, color: Color(0xFF0F4C81)),
                   tooltip: 'Refresh',
                   onPressed: _loadData,
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF0F4C81),
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                if (_permissionService.canCreate(AppModules.reminders))
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0F4C81),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      ),
+                      icon: const Icon(Icons.add_rounded, size: 18),
+                      label: const Text(
+                        'Add Reminder',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                      ),
+                      onPressed: () => _openAddEditDialog(),
                     ),
-                    icon: const Icon(Icons.add_rounded, size: 18),
-                    label: const Text(
-                      'Add Reminder',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                    ),
-                    onPressed: () => _openAddEditDialog(),
                   ),
-                ),
               ],
             )
           : null,
-      floatingActionButton: !widget.showAppBar
+      floatingActionButton: (!widget.showAppBar && _permissionService.canCreate(AppModules.reminders))
           ? FloatingActionButton.extended(
               onPressed: () => _openAddEditDialog(),
               backgroundColor: const Color(0xFF0F4C81),
@@ -651,8 +681,11 @@ class _RemindersScreenState extends State<RemindersScreen> {
     final dateFormat = DateFormat('dd MMM yyyy, hh:mm a');
     final formattedDate = dateFormat.format(r.dueDate);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+    return InkWell(
+      onTap: _permissionService.canEdit(AppModules.reminders) ? () => _openAddEditDialog(r) : null,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -743,56 +776,60 @@ class _RemindersScreenState extends State<RemindersScreen> {
                   ),
                 ),
                 // Overflow Menu
-                PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert_rounded, size: 20, color: Colors.grey),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onSelected: (val) {
-                    if (val == 'edit') {
-                      _openAddEditDialog(r);
-                    } else if (val == 'delete') {
-                      _deleteReminder(r);
-                    } else if (val == 'toggle') {
-                      _toggleStatus(r);
-                    }
-                  },
-                  itemBuilder: (ctx) => [
-                    PopupMenuItem(
-                      value: 'toggle',
-                      child: Row(
-                        children: [
-                          Icon(
-                            r.isCompleted ? Icons.undo_rounded : Icons.check_circle_outline_rounded,
-                            size: 18,
-                            color: r.isCompleted ? Colors.orange : Colors.green,
+                if (_permissionService.canEdit(AppModules.reminders) || _permissionService.canDelete(AppModules.reminders))
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert_rounded, size: 20, color: Colors.grey),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onSelected: (val) {
+                      if (val == 'edit') {
+                        _openAddEditDialog(r);
+                      } else if (val == 'delete') {
+                        _deleteReminder(r);
+                      } else if (val == 'toggle') {
+                        _toggleStatus(r);
+                      }
+                    },
+                    itemBuilder: (ctx) => [
+                      if (_permissionService.canEdit(AppModules.reminders))
+                        PopupMenuItem(
+                          value: 'toggle',
+                          child: Row(
+                            children: [
+                              Icon(
+                                r.isCompleted ? Icons.undo_rounded : Icons.check_circle_outline_rounded,
+                                size: 18,
+                                color: r.isCompleted ? Colors.orange : Colors.green,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(r.isCompleted ? 'Reopen' : 'Mark Complete'),
+                            ],
                           ),
-                          const SizedBox(width: 8),
-                          Text(r.isCompleted ? 'Reopen' : 'Mark Complete'),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'edit',
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit_outlined, size: 18, color: Color(0xFF0F4C81)),
-                          const SizedBox(width: 8),
-                          Text('Edit Reminder'),
-                        ],
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete_outline_rounded, size: 18, color: Colors.red),
-                          const SizedBox(width: 8),
-                          Text('Delete', style: TextStyle(color: Colors.red)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+                        ),
+                      if (_permissionService.canEdit(AppModules.reminders))
+                        PopupMenuItem(
+                          value: 'edit',
+                          child: const Row(
+                            children: [
+                              Icon(Icons.edit_outlined, size: 18, color: Color(0xFF0F4C81)),
+                              SizedBox(width: 8),
+                              Text('Edit Reminder'),
+                            ],
+                          ),
+                        ),
+                      if (_permissionService.canDelete(AppModules.reminders))
+                        PopupMenuItem(
+                          value: 'delete',
+                          child: const Row(
+                            children: [
+                              Icon(Icons.delete_outline_rounded, size: 18, color: Colors.red),
+                              SizedBox(width: 8),
+                              Text('Delete', style: TextStyle(color: Colors.red)),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
               ],
             ),
 
@@ -827,14 +864,14 @@ class _RemindersScreenState extends State<RemindersScreen> {
                       color: const Color(0xFF0F4C81).withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Row(
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.person_rounded, size: 13, color: Color(0xFF0F4C81)),
-                        SizedBox(width: 4),
+                        const Icon(Icons.person_rounded, size: 13, color: Color(0xFF0F4C81)),
+                        const SizedBox(width: 4),
                         Text(
-                          'For Myself (Super Admin)',
-                          style: TextStyle(
+                          'For Myself (${_permissionService.currentRole})',
+                          style: const TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
                             color: Color(0xFF0F4C81),
@@ -886,7 +923,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
 
                 // Quick Toggle Complete Button
                 InkWell(
-                  onTap: () => _toggleStatus(r),
+                  onTap: _permissionService.canEdit(AppModules.reminders) ? () => _toggleStatus(r) : null,
                   borderRadius: BorderRadius.circular(20),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -923,7 +960,7 @@ class _RemindersScreenState extends State<RemindersScreen> {
           ],
         ),
       ),
-    );
+    ),);
   }
 
   Widget _buildStatusPill(ReminderModel r) {
@@ -1009,16 +1046,17 @@ class _RemindersScreenState extends State<RemindersScreen> {
               style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
             ),
             const SizedBox(height: 16),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0F4C81),
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            if (_permissionService.canCreate(AppModules.reminders))
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0F4C81),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('Create Reminder'),
+                onPressed: () => _openAddEditDialog(),
               ),
-              icon: const Icon(Icons.add_rounded, size: 18),
-              label: const Text('Create Reminder'),
-              onPressed: () => _openAddEditDialog(),
-            ),
           ],
         ),
       ),
@@ -1196,14 +1234,30 @@ class _AddEditReminderSheetState extends State<_AddEditReminderSheet> {
         status: widget.reminder?.status ?? 'Pending',
         isForSelf: _isForSelf,
         employeeId: _isForSelf ? null : _selectedEmployeeId,
-        employeeName: _isForSelf ? 'Super Admin' : _selectedEmployeeName,
-        targetRole: 'Super Admin',
+        employeeName: _isForSelf ? PermissionService.instance.currentRole : _selectedEmployeeName,
+        targetRole: PermissionService.instance.currentRole,
       );
 
       final service = ReminderService();
       if (widget.reminder == null) {
+        if (!PermissionService.instance.canCreate(AppModules.reminders)) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('You do not have permission to create reminders')),
+            );
+          }
+          return;
+        }
         await service.createReminder(reminderModel);
       } else {
+        if (!PermissionService.instance.canEdit(AppModules.reminders)) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('You do not have permission to edit reminders')),
+            );
+          }
+          return;
+        }
         await service.updateReminder(reminderModel);
       }
 
@@ -1328,7 +1382,7 @@ class _AddEditReminderSheetState extends State<_AddEditReminderSheet> {
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
-                                  'For Myself (Admin)',
+                                  'For Myself (${PermissionService.instance.currentRole})',
                                   style: TextStyle(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.bold,

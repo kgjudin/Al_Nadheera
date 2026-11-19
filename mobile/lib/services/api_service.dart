@@ -508,7 +508,7 @@ class ApiService {
   Future<IpcDocument> getIpcDocumentById(String id) async {
     final response = await http.get(Uri.parse('$baseUrl/ipc/$id'));
     final data = _processResponse(response);
-    final docData = data['data'] != null ? data['data'] : data;
+    final docData = data['data'] ?? data;
     return IpcDocument.fromJson(docData);
   }
 
@@ -519,7 +519,7 @@ class ApiService {
       body: json.encode(data),
     );
     final res = _processResponse(response);
-    final docData = res['data'] != null ? res['data'] : res;
+    final docData = res['data'] ?? res;
     return IpcDocument.fromJson(docData);
   }
 
@@ -530,13 +530,29 @@ class ApiService {
       body: json.encode(data),
     );
     final res = _processResponse(response);
-    final docData = res['data'] != null ? res['data'] : res;
+    final docData = res['data'] ?? res;
     return IpcDocument.fromJson(docData);
   }
 
   Future<void> deleteIpcDocument(String id) async {
     final response = await http.delete(Uri.parse('$baseUrl/ipc/$id'));
     _processResponse(response);
+  }
+
+  /// Get effective calculated user permissions from backend API
+  Future<Map<String, dynamic>?> getUserPermissions(String userId) async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/roles/user-permissions/$userId'));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['success'] == true && data['data'] != null) {
+          return data['data'] as Map<String, dynamic>;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error calling getUserPermissions API: $e');
+    }
+    return null;
   }
 }
 

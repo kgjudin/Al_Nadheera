@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/api_service.dart';
 import '../../services/permission_service.dart';
+import '../../core/constants/app_modules.dart';
 import '../../models/dashboard_metrics_model.dart';
 import '../../models/site_model.dart';
 import '../../models/task_model.dart';
@@ -63,7 +64,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _fetchReminders() async {
-    if (!_permissionService.isSuperAdmin) {
+    if (!_permissionService.canView(AppModules.reminders)) {
       if (mounted) setState(() => _pendingReminders = []);
       return;
     }
@@ -377,8 +378,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ],
                         ),
 
-                      // 4.5. REMINDERS & RENEWALS (SUPER ADMIN ONLY)
-                      if (_permissionService.isSuperAdmin) ...[
+                      // 4.5. REMINDERS & RENEWALS
+                      if (_permissionService.canView(AppModules.reminders)) ...[
                         const SizedBox(height: 24),
                         _buildRemindersDashboardCard(),
                       ],
@@ -406,57 +407,56 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                       const SizedBox(height: 14),
 
-                      // 6. QUICK SHORTCUTS
-                      if (isWide)
-                        Row(
-                          children: [
-                            Expanded(child: _buildShortcutAllSites()),
-                            const SizedBox(width: 14),
-                            Expanded(child: _buildShortcutStaffDirectory()),
-                            const SizedBox(width: 14),
-                            Expanded(child: _buildShortcutTeamChat()),
-                            if (_permissionService.isSuperAdmin) ...[
-                              const SizedBox(width: 14),
-                              Expanded(child: _buildShortcutReminders()),
-                            ],
-                            const SizedBox(width: 14),
-                            Expanded(child: _buildShortcutAccessControl()),
-                          ],
-                        )
-                      else
-                        Column(
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(child: _buildShortcutAllSites()),
-                                const SizedBox(width: 12),
-                                Expanded(child: _buildShortcutStaffDirectory()),
+                      // 6. QUICK SHORTCUTS (Dynamic based on assigned permissions)
+                      () {
+                        final List<Widget> shortcuts = [];
+                        if (_permissionService.canView(AppModules.sites)) {
+                          shortcuts.add(_buildShortcutAllSites());
+                        }
+                        if (_permissionService.canView(AppModules.employees)) {
+                          shortcuts.add(_buildShortcutStaffDirectory());
+                        }
+                        if (_permissionService.canView(AppModules.chat)) {
+                          shortcuts.add(_buildShortcutTeamChat());
+                        }
+                        if (_permissionService.canView(AppModules.reminders)) {
+                          shortcuts.add(_buildShortcutReminders());
+                        }
+                        if (_permissionService.canView(AppModules.roleManagement) || _permissionService.isAdmin) {
+                          shortcuts.add(_buildShortcutAccessControl());
+                        }
+
+                        if (shortcuts.isEmpty) return const SizedBox.shrink();
+
+                        if (isWide) {
+                          return Row(
+                            children: [
+                              for (int i = 0; i < shortcuts.length; i++) ...[
+                                if (i > 0) const SizedBox(width: 14),
+                                Expanded(child: shortcuts[i]),
                               ],
-                            ),
-                            const SizedBox(height: 12),
-                            Row(
-                              children: [
-                                Expanded(child: _buildShortcutTeamChat()),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: _permissionService.isSuperAdmin
-                                      ? _buildShortcutReminders()
-                                      : _buildShortcutAccessControl(),
+                            ],
+                          );
+                        } else {
+                          return Column(
+                            children: [
+                              for (int i = 0; i < shortcuts.length; i += 2) ...[
+                                if (i > 0) const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(child: shortcuts[i]),
+                                    const SizedBox(width: 12),
+                                    if (i + 1 < shortcuts.length)
+                                      Expanded(child: shortcuts[i + 1])
+                                    else
+                                      const Expanded(child: SizedBox.shrink()),
+                                  ],
                                 ),
                               ],
-                            ),
-                            if (_permissionService.isSuperAdmin) ...[
-                              const SizedBox(height: 12),
-                              Row(
-                                children: [
-                                  Expanded(child: _buildShortcutAccessControl()),
-                                  const SizedBox(width: 12),
-                                  const Expanded(child: SizedBox.shrink()),
-                                ],
-                              ),
                             ],
-                          ],
-                        ),
+                          );
+                        }
+                      }(),
 
                       const SizedBox(height: 30),
 
@@ -1216,12 +1216,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<AppNotificationItem> _getNotifications() {
     final List<AppNotificationItem> list = [];
 
-    // Reminders (Strictly only for Super Admin)
-    if (_permissionService.isSuperAdmin) {
+    // Reminders
+    if (_permissionService.canView(AppModules.reminders)) {
       for (final r in _pendingReminders) {
         final id = 'reminder_${r.id}';
         if (_dismissedNotificationIds.contains(id)) continue;
-        final audience = r.isForSelf ? 'Personal (Super Admin)' : (r.employeeName ?? 'Staff Member');
+        final audience = r.isForSelf ? 'Personal' : (r.employeeName ?? 'Staff Member');
         list.add(AppNotificationItem(
           id: id,
           title: '${r.category}: ${r.title}',
@@ -2322,16 +2322,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFF0F4C81)),
-                  tooltip: 'Add Reminder',
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const RemindersScreen()),
-                    ).then((_) => _loadData());
-                  },
-                ),
+                if (_permissionService.canCreate(AppModules.reminders))
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_outline_rounded, color: Color(0xFF0F4C81)),
+                    tooltip: 'Add Reminder',
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const RemindersScreen()),
+                      ).then((_) => _loadData());
+                    },
+                  ),
                 TextButton(
                   onPressed: () {
                     Navigator.push(
@@ -2381,22 +2382,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ],
                     ),
                   ),
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF0F4C81),
-                      side: const BorderSide(color: Color(0xFF0F4C81)),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      visualDensity: VisualDensity.compact,
+                  if (_permissionService.canCreate(AppModules.reminders))
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF0F4C81),
+                        side: const BorderSide(color: Color(0xFF0F4C81)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => const RemindersScreen()),
+                        ).then((_) => _loadData());
+                      },
+                      icon: const Icon(Icons.add, size: 14),
+                      label: const Text('Add', style: TextStyle(fontSize: 12)),
                     ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const RemindersScreen()),
-                      ).then((_) => _loadData());
-                    },
-                    icon: const Icon(Icons.add, size: 14),
-                    label: const Text('Add', style: TextStyle(fontSize: 12)),
-                  ),
                 ],
               ),
             )
@@ -2493,23 +2495,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ],
                     ),
                   ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.grey, size: 22),
-                    tooltip: 'Mark Complete',
-                    onPressed: () async {
-                      await ReminderService().toggleReminderStatus(r.id, 'Completed');
-                      _loadData();
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Completed: ${r.title}'),
-                            duration: const Duration(seconds: 2),
-                            backgroundColor: Colors.green[700],
-                          ),
-                        );
-                      }
-                    },
-                  ),
+                  trailing: _permissionService.canEdit(AppModules.reminders)
+                      ? IconButton(
+                          icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.grey, size: 22),
+                          tooltip: 'Mark Complete',
+                          onPressed: () async {
+                            await ReminderService().toggleReminderStatus(r.id, 'Completed');
+                            _loadData();
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Completed: ${r.title}'),
+                                  duration: const Duration(seconds: 2),
+                                  backgroundColor: Colors.green[700],
+                                ),
+                              );
+                            }
+                          },
+                        )
+                      : null,
                   onTap: () {
                     Navigator.push(
                       context,
